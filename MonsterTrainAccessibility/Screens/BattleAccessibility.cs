@@ -1,0 +1,2477 @@
+using MonsterTrainAccessibility.Core;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using UnityEngine;
+
+namespace MonsterTrainAccessibility.Screens
+{
+    /// <summary>
+    /// Handles accessibility for the battle/combat screen.
+    /// Reads actual game state from the game's managers.
+    /// </summary>
+    public class BattleAccessibility
+    {
+        public bool IsInBattle { get; private set; }
+
+        // Cached manager references (found at runtime)
+        private object _cardManager;
+        private object _saveManager;
+        private object _roomManager;
+        private object _playerManager;
+        private object _combatManager;
+
+        // Cached reflection info
+        private System.Reflection.MethodInfo _getHandMethod;
+        private System.Reflection.MethodInfo _getTitleMethod;
+        private System.Reflection.MethodInfo _getCostMethod;
+        private System.Reflection.MethodInfo _getTowerHPMethod;
+        private System.Reflection.MethodInfo _getMaxTowerHPMethod;
+        private System.Reflection.MethodInfo _getEnergyMethod;
+        private System.Reflection.MethodInfo _getGoldMethod;
+        private System.Reflection.MethodInfo _getRoomMethod;
+        private System.Reflection.MethodInfo _getSelectedRoomMethod;
+        private System.Reflection.MethodInfo _getHPMethod;
+        private System.Reflection.MethodInfo _getAttackDamageMethod;
+        private System.Reflection.MethodInfo _getTeamTypeMethod;
+        private System.Reflection.MethodInfo _getCharacterNameMethod;
+        private bool _roomManagerMethodsLogged = false;
+
+        public BattleAccessibility()
+        {
+        }
+
+        #region Manager Discovery
+
+        /// <summary>
+        /// Find and cache references to game managers
+        /// </summary>
+        private void FindManagers()
+        {
+            try
+            {
+                // Find managers using FindObjectOfType
+                _cardManager = FindManager("CardManager");
+                _saveManager = FindManager("SaveManager");
+                _roomManager = FindManager("RoomManager");
+                _playerManager = FindManager("PlayerManager");
+                _combatManager = FindManager("CombatManager");
+
+                // Cache method info for performance
+                CacheMethodInfo();
+
+                MonsterTrainAccessibility.LogInfo($"Found managers - CardManager: {_cardManager != null}, SaveManager: {_saveManager != null}");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error finding managers: {ex.Message}");
+            }
+        }
+
+        private object FindManager(string typeName)
+        {
+            try
+            {
+                // Find the type in the game assembly
+                var type = Type.GetType(typeName + ", Assembly-CSharp");
+                if (type == null)
+                {
+                    // Try without assembly qualifier
+                    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        type = assembly.GetType(typeName);
+                        if (type != null) break;
+                    }
+                }
+
+                if (type != null)
+                {
+                    // FindObjectOfType is a generic method, use reflection
+                    var findMethod = typeof(UnityEngine.Object).GetMethod("FindObjectOfType", new Type[0]);
+                    var genericMethod = findMethod.MakeGenericMethod(type);
+                    return genericMethod.Invoke(null, null);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error finding {typeName}: {ex.Message}");
+            }
+            return null;
+        }
+
+        private void CacheMethodInfo()
+        {
+            try
+            {
+                if (_cardManager != null)
+                {
+                    var cardManagerType = _cardManager.GetType();
+                    // GetHand has overloads, try to find the one without parameters or with bool
+                    _getHandMethod = cardManagerType.GetMethod("GetHand", new Type[] { typeof(bool) })
+                                  ?? cardManagerType.GetMethod("GetHand", Type.EmptyTypes);
+                }
+
+                if (_saveManager != null)
+                {
+                    var saveManagerType = _saveManager.GetType();
+                    _getTowerHPMethod = saveManagerType.GetMethod("GetTowerHP", Type.EmptyTypes);
+                    _getMaxTowerHPMethod = saveManagerType.GetMethod("GetMaxTowerHP", Type.EmptyTypes);
+                    _getGoldMethod = saveManagerType.GetMethod("GetGold", Type.EmptyTypes);
+                }
+
+                if (_playerManager != null)
+                {
+                    var playerManagerType = _playerManager.GetType();
+                    _getEnergyMethod = playerManagerType.GetMethod("GetEnergy", Type.EmptyTypes);
+                }
+
+                if (_roomManager != null)
+                {
+                    var roomManagerType = _roomManager.GetType();
+                    // GetRoom takes an int parameter (room index)
+                    _getRoomMethod = roomManagerType.GetMethod("GetRoom", new Type[] { typeof(int) });
+
+                    // Log all RoomManager methods once to find the selected room method
+                    if (!_roomManagerMethodsLogged)
+                    {
+                        _roomManagerMethodsLogged = true;
+                        var methods = roomManagerType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                        var relevantMethods = methods.Where(m =>
+                            m.Name.Contains("Room") || m.Name.Contains("Select") ||
+                            m.Name.Contains("Active") || m.Name.Contains("Focus") ||
+                            m.Name.Contains("Current") || m.Name.Contains("View") ||
+                            m.Name.Contains("Index") || m.Name.Contains("Floor"))
+                            .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})");
+                        MonsterTrainAccessibility.LogInfo($"RoomManager room-related methods: {string.Join(", ", relevantMethods)}");
+
+                        // Also check properties
+                        var properties = roomManagerType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                        var relevantProps = properties.Where(p =>
+                            p.Name.Contains("Room") || p.Name.Contains("Select") ||
+                            p.Name.Contains("Active") || p.Name.Contains("Focus") ||
+                            p.Name.Contains("Current") || p.Name.Contains("View") ||
+                            p.Name.Contains("Index") || p.Name.Contains("Floor"))
+                            .Select(p => $"{p.Name} ({p.PropertyType.Name})");
+                        MonsterTrainAccessibility.LogInfo($"RoomManager room-related properties: {string.Join(", ", relevantProps)}");
+                    }
+
+                    // Try to find the selected room method/property
+                    _getSelectedRoomMethod = roomManagerType.GetMethod("GetSelectedRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetActiveRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetFocusedRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetCurrentRoom", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetSelectedRoomIndex", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetActiveRoomIndex", Type.EmptyTypes) ??
+                                             roomManagerType.GetMethod("GetFocusedRoomIndex", Type.EmptyTypes);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error caching manager methods: {ex.Message}");
+            }
+
+            // Cache game type methods separately to isolate errors
+            try
+            {
+                // Cache CardState methods
+                var cardStateType = Type.GetType("CardState, Assembly-CSharp");
+                if (cardStateType != null)
+                {
+                    _getTitleMethod = cardStateType.GetMethod("GetTitle", Type.EmptyTypes);
+                    _getCostMethod = cardStateType.GetMethod("GetCostWithoutAnyModifications", Type.EmptyTypes)
+                                  ?? cardStateType.GetMethod("GetCost", Type.EmptyTypes);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error caching CardState methods: {ex.Message}");
+            }
+
+            try
+            {
+                // Cache CharacterState methods
+                var characterStateType = Type.GetType("CharacterState, Assembly-CSharp");
+                if (characterStateType != null)
+                {
+                    _getHPMethod = characterStateType.GetMethod("GetHP", Type.EmptyTypes);
+                    _getAttackDamageMethod = characterStateType.GetMethod("GetAttackDamage", Type.EmptyTypes);
+                    _getTeamTypeMethod = characterStateType.GetMethod("GetTeamType", Type.EmptyTypes);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error caching CharacterState methods: {ex.Message}");
+            }
+
+            try
+            {
+                // Cache CharacterData methods for getting name
+                var characterDataType = Type.GetType("CharacterData, Assembly-CSharp");
+                if (characterDataType != null)
+                {
+                    _getCharacterNameMethod = characterDataType.GetMethod("GetName", Type.EmptyTypes);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error caching CharacterData methods: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Battle Lifecycle
+
+        /// <summary>
+        /// Called when combat begins
+        /// </summary>
+        public void OnBattleEntered()
+        {
+            IsInBattle = true;
+            FindManagers();
+
+            MonsterTrainAccessibility.LogInfo("Battle entered");
+            MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Battle started");
+
+            // Announce initial state
+            AnnounceResources();
+        }
+
+        /// <summary>
+        /// Called when combat ends
+        /// </summary>
+        public void OnBattleExited()
+        {
+            IsInBattle = false;
+            MonsterTrainAccessibility.LogInfo("Battle exited");
+        }
+
+        /// <summary>
+        /// Called at the start of player's turn
+        /// </summary>
+        public void OnTurnStarted(int ember, int maxEmber, int cardsDrawn)
+        {
+            var output = MonsterTrainAccessibility.ScreenReader;
+            output?.Speak("Your turn", false);
+
+            // Read actual ember from game
+            int actualEmber = GetCurrentEnergy();
+            if (actualEmber >= 0)
+            {
+                output?.Queue($"{actualEmber} ember");
+            }
+
+            if (cardsDrawn > 0)
+            {
+                output?.Queue($"Drew {cardsDrawn} cards");
+            }
+        }
+
+        /// <summary>
+        /// Called when player ends their turn
+        /// </summary>
+        public void OnTurnEnded()
+        {
+            MonsterTrainAccessibility.ScreenReader?.Speak("End turn. Combat phase.", false);
+        }
+
+        /// <summary>
+        /// End the player's turn via UI button click or method call
+        /// </summary>
+        public void EndTurn()
+        {
+            if (!IsInBattle)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
+                return;
+            }
+
+            try
+            {
+                // Try to find and click the End Turn button in the UI
+                // Look for BattleHud first, then find the end turn button within it
+                var battleHudType = Type.GetType("BattleHud, Assembly-CSharp");
+                if (battleHudType == null)
+                {
+                    foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        battleHudType = assembly.GetType("BattleHud");
+                        if (battleHudType != null) break;
+                    }
+                }
+
+                if (battleHudType != null)
+                {
+                    var battleHud = GameObject.FindObjectOfType(battleHudType);
+                    if (battleHud != null)
+                    {
+                        // Try to find EndTurn method or button
+                        var endTurnMethod = battleHudType.GetMethod("EndTurn", Type.EmptyTypes)
+                            ?? battleHudType.GetMethod("OnEndTurnPressed", Type.EmptyTypes)
+                            ?? battleHudType.GetMethod("OnEndTurnClicked", Type.EmptyTypes);
+
+                        if (endTurnMethod != null)
+                        {
+                            endTurnMethod.Invoke(battleHud, null);
+                            MonsterTrainAccessibility.LogInfo("Ended turn via BattleHud method");
+                            return;
+                        }
+
+                        // Try to find the button component and click it
+                        var go = (battleHud as Component)?.gameObject;
+                        if (go != null)
+                        {
+                            // Search for a button named EndTurn or similar
+                            var buttons = go.GetComponentsInChildren<UnityEngine.UI.Button>(true);
+                            foreach (var button in buttons)
+                            {
+                                var name = button.gameObject.name.ToLower();
+                                if (name.Contains("endturn") || name.Contains("end turn") || name.Contains("pass"))
+                                {
+                                    button.onClick?.Invoke();
+                                    MonsterTrainAccessibility.LogInfo($"Clicked end turn button: {button.gameObject.name}");
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: try CombatManager.EndPlayerTurn
+                if (_combatManager != null)
+                {
+                    var combatType = _combatManager.GetType();
+                    var endTurnMethod = combatType.GetMethod("EndPlayerTurn", Type.EmptyTypes)
+                        ?? combatType.GetMethod("PlayerEndTurn", Type.EmptyTypes)
+                        ?? combatType.GetMethod("EndTurn", Type.EmptyTypes);
+
+                    if (endTurnMethod != null)
+                    {
+                        endTurnMethod.Invoke(_combatManager, null);
+                        MonsterTrainAccessibility.LogInfo("Ended turn via CombatManager");
+                        return;
+                    }
+                    else
+                    {
+                        // Log available methods for debugging
+                        var methods = combatType.GetMethods()
+                            .Where(m => m.Name.ToLower().Contains("turn") || m.Name.ToLower().Contains("end"))
+                            .Select(m => m.Name)
+                            .Distinct()
+                            .ToArray();
+                        MonsterTrainAccessibility.LogInfo($"CombatManager turn-related methods: {string.Join(", ", methods)}");
+                    }
+                }
+
+                MonsterTrainAccessibility.ScreenReader?.Queue("Could not find end turn button");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error ending turn: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Queue("Error ending turn");
+            }
+        }
+
+        /// <summary>
+        /// Called when battle is won
+        /// </summary>
+        public void OnBattleWon()
+        {
+            IsInBattle = false;
+            MonsterTrainAccessibility.ScreenReader?.Speak("Victory! Battle won.", false);
+        }
+
+        /// <summary>
+        /// Called when pyre is destroyed
+        /// </summary>
+        public void OnBattleLost()
+        {
+            IsInBattle = false;
+            MonsterTrainAccessibility.ScreenReader?.Speak("Defeat. The pyre has been destroyed.", false);
+        }
+
+        #endregion
+
+        #region Hand Reading
+
+        /// <summary>
+        /// Announce all cards in hand
+        /// </summary>
+        public void AnnounceHand()
+        {
+            try
+            {
+                var hand = GetHandCards();
+                if (hand == null || hand.Count == 0)
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Hand is empty", false);
+                    return;
+                }
+
+                var sb = new StringBuilder();
+                sb.Append($"Hand contains {hand.Count} cards. ");
+
+                int currentEnergy = GetCurrentEnergy();
+                var verbosity = MonsterTrainAccessibility.AccessibilitySettings.VerbosityLevel.Value;
+
+                for (int i = 0; i < hand.Count; i++)
+                {
+                    var card = hand[i];
+                    string name = GetCardTitle(card);
+                    int cost = GetCardCost(card);
+                    string cardType = GetCardType(card);
+                    string clanName = GetCardClan(card);
+                    string description = GetCardDescription(card);
+
+                    string playable = (currentEnergy >= 0 && cost > currentEnergy) ? ", unplayable" : "";
+
+                    // Build card announcement based on verbosity
+                    if (verbosity == Core.VerbosityLevel.Minimal)
+                    {
+                        sb.Append($"{i + 1}: {name}, {cost} ember{playable}. ");
+                    }
+                    else
+                    {
+                        // Normal and Verbose include type, clan, and description
+                        string typeStr = !string.IsNullOrEmpty(cardType) ? $" ({cardType})" : "";
+                        string clanStr = !string.IsNullOrEmpty(clanName) ? $", {clanName}" : "";
+                        sb.Append($"{i + 1}: {name}{typeStr}{clanStr}, {cost} ember{playable}. ");
+
+                        if (!string.IsNullOrEmpty(description))
+                        {
+                            sb.Append($"{description} ");
+                        }
+
+                        // At Verbose level, include keyword tooltips
+                        if (verbosity == Core.VerbosityLevel.Verbose)
+                        {
+                            string keywords = GetCardKeywords(card, description);
+                            if (!string.IsNullOrEmpty(keywords))
+                            {
+                                sb.Append($"Keywords: {keywords} ");
+                            }
+                        }
+                    }
+                }
+
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error announcing hand: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read hand", false);
+            }
+        }
+
+        private List<object> GetHandCards()
+        {
+            if (_cardManager == null || _getHandMethod == null)
+            {
+                FindManagers();
+                if (_cardManager == null) return null;
+            }
+
+            try
+            {
+                var result = _getHandMethod.Invoke(_cardManager, new object[] { false });
+                if (result is System.Collections.IList list)
+                {
+                    var cards = new List<object>();
+                    foreach (var card in list)
+                    {
+                        cards.Add(card);
+                    }
+                    return cards;
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting hand: {ex.Message}");
+            }
+            return null;
+        }
+
+        private string GetCardTitle(object cardState)
+        {
+            try
+            {
+                if (_getTitleMethod == null)
+                {
+                    var type = cardState.GetType();
+                    _getTitleMethod = type.GetMethod("GetTitle");
+                }
+                var title = _getTitleMethod?.Invoke(cardState, null) as string ?? "Unknown Card";
+                return StripRichTextTags(title);
+            }
+            catch
+            {
+                return "Unknown Card";
+            }
+        }
+
+        private int GetCardCost(object cardState)
+        {
+            try
+            {
+                if (_getCostMethod == null)
+                {
+                    var type = cardState.GetType();
+                    _getCostMethod = type.GetMethod("GetCostWithoutAnyModifications");
+                }
+                var result = _getCostMethod?.Invoke(cardState, null);
+                if (result is int cost) return cost;
+            }
+            catch { }
+            return 0;
+        }
+
+        private string GetCardDescription(object cardState)
+        {
+            try
+            {
+                var type = cardState.GetType();
+                string result = null;
+
+                // Try GetDescription first
+                var getDescMethod = type.GetMethod("GetDescription");
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(cardState, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                        result = desc;
+                }
+
+                // Try GetEffectDescription
+                if (result == null)
+                {
+                    var getEffectDescMethod = type.GetMethod("GetEffectDescription");
+                    if (getEffectDescMethod != null)
+                    {
+                        var desc = getEffectDescMethod.Invoke(cardState, null) as string;
+                        if (!string.IsNullOrEmpty(desc))
+                            result = desc;
+                    }
+                }
+
+                // Try getting from CardData
+                if (result == null)
+                {
+                    var getCardDataMethod = type.GetMethod("GetCardDataID") ?? type.GetMethod("GetCardData");
+                    if (getCardDataMethod != null)
+                    {
+                        var cardData = getCardDataMethod.Invoke(cardState, null);
+                        if (cardData != null)
+                        {
+                            var dataType = cardData.GetType();
+                            var dataDescMethod = dataType.GetMethod("GetDescription");
+                            if (dataDescMethod != null)
+                            {
+                                var desc = dataDescMethod.Invoke(cardData, null) as string;
+                                if (!string.IsNullOrEmpty(desc))
+                                    result = desc;
+                            }
+                        }
+                    }
+                }
+
+                // Strip rich text tags before returning
+                return StripRichTextTags(result);
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Strip rich text tags from text for screen reader output.
+        /// Removes Unity rich text tags like <nobr>, <color>, <upgradeHighlight>, etc.
+        /// </summary>
+        public static string StripRichTextTags(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            // Use regex to strip all XML-like tags
+            // This handles: <tag>, </tag>, <tag attribute="value">, self-closing <tag/>, etc.
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", "");
+
+            // Also clean up any double spaces that might result
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+
+            return text.Trim();
+        }
+
+        private string GetCardType(object cardState)
+        {
+            try
+            {
+                var type = cardState.GetType();
+                var getCardTypeMethod = type.GetMethod("GetCardType");
+                if (getCardTypeMethod != null)
+                {
+                    var cardType = getCardTypeMethod.Invoke(cardState, null);
+                    if (cardType != null)
+                    {
+                        string typeName = cardType.ToString();
+                        // Convert enum value to readable name
+                        if (typeName == "Monster") return "Unit";
+                        if (typeName == "Spell") return "Spell";
+                        if (typeName == "Blight") return "Blight";
+                        return typeName;
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private string GetCardClan(object cardState)
+        {
+            try
+            {
+                var type = cardState.GetType();
+
+                // Get CardData from CardState
+                var getCardDataMethod = type.GetMethod("GetCardDataRead", Type.EmptyTypes)
+                                     ?? type.GetMethod("GetCardData", Type.EmptyTypes);
+                if (getCardDataMethod == null) return null;
+
+                var cardData = getCardDataMethod.Invoke(cardState, null);
+                if (cardData == null) return null;
+
+                var cardDataType = cardData.GetType();
+
+                // Get linkedClass field from CardData
+                var linkedClassField = cardDataType.GetField("linkedClass",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (linkedClassField == null) return null;
+
+                var linkedClass = linkedClassField.GetValue(cardData);
+                if (linkedClass == null) return null;
+
+                var classType = linkedClass.GetType();
+
+                // Try GetTitle() for localized name
+                var getTitleMethod = classType.GetMethod("GetTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    var clanName = getTitleMethod.Invoke(linkedClass, null) as string;
+                    if (!string.IsNullOrEmpty(clanName)) return clanName;
+                }
+
+                // Fallback to GetName()
+                var getNameMethod = classType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    return getNameMethod.Invoke(linkedClass, null) as string;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Announce cards drawn (with card names)
+        /// </summary>
+        public void OnCardsDrawn(List<string> cardNames)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceCardDraws.Value)
+                return;
+
+            if (cardNames.Count == 1)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {cardNames[0]}");
+            }
+            else
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Drew: {string.Join(", ", cardNames)}");
+            }
+        }
+
+        /// <summary>
+        /// Announce cards drawn (count only, used when card names aren't available)
+        /// </summary>
+        public void OnCardsDrawn(int count)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceCardDraws.Value)
+                return;
+
+            // Get hand size to tell user which numbers to use
+            int handSize = GetHandSize();
+
+            if (count == 1)
+            {
+                if (handSize > 0)
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Queue($"Drew 1 card. Hand has {handSize} cards. Press 1 to {handSize} to select.");
+                }
+                else
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Queue("Drew 1 card");
+                }
+            }
+            else if (count > 1)
+            {
+                if (handSize > 0)
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards. Hand has {handSize} cards. Press 1 to {handSize} to select.");
+                }
+                else
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get the current hand size
+        /// </summary>
+        private int GetHandSize()
+        {
+            try
+            {
+                if (_cardManager == null) return 0;
+
+                // Try to get hand count
+                var getHandMethod = _cardManager.GetType().GetMethod("GetNumCardsInHand");
+                if (getHandMethod != null)
+                {
+                    return (int)getHandMethod.Invoke(_cardManager, null);
+                }
+
+                // Try GetHand and count
+                var getHandCardsMethod = _cardManager.GetType().GetMethod("GetHand");
+                if (getHandCardsMethod != null)
+                {
+                    var hand = getHandCardsMethod.Invoke(_cardManager, null);
+                    if (hand != null)
+                    {
+                        var countProp = hand.GetType().GetProperty("Count");
+                        if (countProp != null)
+                        {
+                            return (int)countProp.GetValue(hand);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting hand size: {ex.Message}");
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Called when a card is played by index
+        /// </summary>
+        public void OnCardPlayed(int cardIndex)
+        {
+            // The card was played successfully
+            MonsterTrainAccessibility.ScreenReader?.Queue("Card played");
+        }
+
+        /// <summary>
+        /// Called when a card is discarded
+        /// </summary>
+        public void OnCardDiscarded(string cardName)
+        {
+            if (!string.IsNullOrEmpty(cardName) && cardName != "Card")
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Discarded {cardName}");
+            }
+        }
+
+        /// <summary>
+        /// Extract keyword definitions from a card's description
+        /// </summary>
+        private string GetCardKeywords(object cardState, string description)
+        {
+            if (string.IsNullOrEmpty(description)) return null;
+
+            try
+            {
+                var keywords = new List<string>();
+
+                // Known keywords with their definitions
+                var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    // Trigger abilities
+                    { "Slay", "Slay: Triggers after dealing a killing blow" },
+                    { "Revenge", "Revenge: Triggers when damaged" },
+                    { "Strike", "Strike: Triggers when attacking" },
+                    { "Extinguish", "Extinguish: Triggers when dying" },
+                    { "Summon", "Summon: Triggers when played" },
+                    { "Incant", "Incant: Triggers when spell played on floor" },
+                    { "Resolve", "Resolve: Triggers after combat" },
+                    { "Rally", "Rally: Triggers when unit played on floor" },
+                    { "Harvest", "Harvest: Triggers when unit dies on floor" },
+                    { "Gorge", "Gorge: Triggers when eating a Morsel" },
+                    { "Inspire", "Inspire: Triggers when gaining Echo" },
+                    { "Rejuvenate", "Rejuvenate: Triggers when healed" },
+                    { "Action", "Action: Triggers at turn start" },
+                    { "Hatch", "Hatch: Triggers on death" },
+                    { "Hunger", "Hunger: Triggers when Eaten unit summoned" },
+                    { "Armored", "Armored: Triggers when Armor added" },
+                    // Buffs
+                    { "Armor", "Armor: Blocks damage" },
+                    { "Rage", "Rage: +2 Attack per stack" },
+                    { "Regen", "Regen: Heals each turn" },
+                    { "Damage Shield", "Damage Shield: Blocks next damage" },
+                    { "Lifesteal", "Lifesteal: Heals for damage dealt" },
+                    { "Spikes", "Spikes: Damages attackers" },
+                    { "Stealth", "Stealth: Not targeted in combat" },
+                    { "Spell Shield", "Spell Shield: Absorbs next spell" },
+                    { "Spellshield", "Spellshield: Absorbs next spell" },
+                    { "Soul", "Soul: Powers Extinguish ability" },
+                    // Debuffs
+                    { "Frostbite", "Frostbite: Damages at end of turn" },
+                    { "Sap", "Sap: -2 Attack per stack" },
+                    { "Dazed", "Dazed: Cannot attack" },
+                    { "Rooted", "Rooted: Cannot move floors" },
+                    { "Emberdrain", "Emberdrain: Lose Ember at turn start" },
+                    { "Heartless", "Heartless: Cannot be healed" },
+                    { "Melee Weakness", "Melee Weakness: Extra melee damage" },
+                    { "Spell Weakness", "Spell Weakness: Extra spell damage" },
+                    { "Reap", "Reap: Damages after combat" },
+                    // Unit effects
+                    { "Quick", "Quick: Attacks first" },
+                    { "Multistrike", "Multistrike: Extra attack" },
+                    { "Sweep", "Sweep: Attacks all enemies" },
+                    { "Trample", "Trample: Excess damage continues" },
+                    { "Burnout", "Burnout: Dies when counter reaches 0" },
+                    { "Endless", "Endless: Returns to draw pile" },
+                    { "Fragile", "Fragile: Dies if damaged" },
+                    { "Immobile", "Immobile: Cannot move" },
+                    { "Inert", "Inert: Needs Fuel to attack" },
+                    { "Fuel", "Fuel: Allows Inert to attack" },
+                    { "Phased", "Phased: Cannot be targeted" },
+                    { "Relentless", "Relentless: Attacks until floor cleared" },
+                    { "Haste", "Haste: Skips to third floor" },
+                    { "Cardless", "Cardless: Not from a card" },
+                    { "Buffet", "Buffet: Can be eaten multiple times" },
+                    { "Shell", "Shell: Uses Echo, triggers Hatch" },
+                    { "Silence", "Silence: Disables triggers" },
+                    { "Silenced", "Silenced: Triggers disabled" },
+                    { "Purify", "Purify: Removes debuffs" },
+                    { "Enchant", "Enchant: Buffs floor allies" },
+                    { "Shard", "Shard: Powers Solgard" },
+                    { "Eaten", "Eaten: Will be eaten" },
+                    // Card effects
+                    { "Consume", "Consume: One use per battle" },
+                    { "Frozen", "Frozen: Not discarded" },
+                    { "Permafrost", "Permafrost: Gains Frozen" },
+                    { "Purge", "Purge: Removed from deck" },
+                    { "Intrinsic", "Intrinsic: Starts in hand" },
+                    { "Holdover", "Holdover: Returns to hand" },
+                    { "Etch", "Etch: Upgrades when consumed" },
+                    { "Offering", "Offering: Plays if discarded" },
+                    { "Reserve", "Reserve: Triggers if kept" },
+                    { "Pyrebound", "Pyrebound: Pyre room only" },
+                    { "Piercing", "Piercing: Ignores Armor" },
+                    { "Magic Power", "Magic Power: Boosts spells" },
+                    { "Attuned", "Attuned: 5x Magic Power" },
+                    { "Infused", "Infused: Adds Echo" },
+                    { "Extract", "Extract: Uses charged echoes" },
+                    { "Spellchain", "Spellchain: Creates copy" },
+                    { "X Cost", "X Cost: Uses all Ember" },
+                    { "Unplayable", "Unplayable: Cannot be played" },
+                    // Unit actions
+                    { "Ascend", "Ascend: Move up" },
+                    { "Descend", "Descend: Move down" },
+                    { "Reform", "Reform: Returns unit to hand" },
+                    { "Sacrifice", "Sacrifice: Kill unit to play" },
+                    { "Cultivate", "Cultivate: Buff weakest unit" },
+                    // Enemy effects
+                    { "Recover", "Recover: Heals after combat" }
+                };
+
+                foreach (var keyword in knownKeywords)
+                {
+                    // Check if keyword appears in description (as whole word)
+                    if (System.Text.RegularExpressions.Regex.IsMatch(description,
+                        $@"\b{System.Text.RegularExpressions.Regex.Escape(keyword.Key)}\b",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    {
+                        if (!keywords.Contains(keyword.Value))
+                        {
+                            keywords.Add(keyword.Value);
+                        }
+                    }
+                }
+
+                if (keywords.Count > 0)
+                {
+                    return string.Join(". ", keywords);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        public void RefreshHand()
+        {
+            // Called when hand changes - could trigger re-announcement if desired
+        }
+
+        #endregion
+
+        #region Floor Reading
+
+        /// <summary>
+        /// Announce all floors
+        /// </summary>
+        public void AnnounceAllFloors()
+        {
+            try
+            {
+                var output = MonsterTrainAccessibility.ScreenReader;
+                output?.Speak("Floor status:", false);
+
+                // Monster Train has 3 playable floors + pyre room
+                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // User floors: 1=bottom, 2=middle, 3=top
+                // Iterate user floors from bottom (1) to top (3)
+                for (int userFloor = 1; userFloor <= 3; userFloor++)
+                {
+                    int roomIndex = 3 - userFloor; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
+                    if (room != null)
+                    {
+                        string floorName = $"Floor {userFloor}";
+                        var units = GetUnitsInRoom(room);
+
+                        if (units.Count == 0)
+                        {
+                            output?.Queue($"{floorName}: Empty");
+                        }
+                        else
+                        {
+                            var descriptions = new List<string>();
+                            foreach (var unit in units)
+                            {
+                                string name = GetUnitName(unit);
+                                int hp = GetUnitHP(unit);
+                                int attack = GetUnitAttack(unit);
+                                bool isEnemy = IsEnemyUnit(unit);
+                                string prefix = isEnemy ? "Enemy" : "";
+                                descriptions.Add($"{prefix} {name} {attack}/{hp}");
+                            }
+                            output?.Queue($"{floorName}: {string.Join(", ", descriptions)}");
+                        }
+                    }
+                }
+
+                // Announce pyre health
+                int pyreHP = GetPyreHealth();
+                int maxPyreHP = GetMaxPyreHealth();
+                if (pyreHP >= 0)
+                {
+                    output?.Queue($"Pyre: {pyreHP} of {maxPyreHP} health");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error announcing floors: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read floors", false);
+            }
+        }
+
+        /// <summary>
+        /// Get the currently selected floor from the game state.
+        /// Returns user-facing floor number (1-3, where 1 is bottom, 3 is top).
+        /// Returns -1 if unable to determine.
+        /// </summary>
+        public int GetSelectedFloor()
+        {
+            try
+            {
+                if (_roomManager == null)
+                {
+                    FindManagers();
+                }
+
+                if (_roomManager == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("GetSelectedFloor: RoomManager is null");
+                    return -1;
+                }
+
+                var roomManagerType = _roomManager.GetType();
+                int roomIndex = -1;
+
+                // GetSelectedRoom() returns an int (room index) directly, not a RoomState object
+                var getSelectedRoomMethod = roomManagerType.GetMethod("GetSelectedRoom", Type.EmptyTypes);
+                if (getSelectedRoomMethod != null)
+                {
+                    var result = getSelectedRoomMethod.Invoke(_roomManager, null);
+                    if (result is int idx)
+                    {
+                        roomIndex = idx;
+                        MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: GetSelectedRoom() = {roomIndex}");
+                    }
+                    else
+                    {
+                        MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: GetSelectedRoom() returned {result?.GetType().Name ?? "null"}: {result}");
+                    }
+                }
+                else
+                {
+                    MonsterTrainAccessibility.LogInfo("GetSelectedFloor: GetSelectedRoom method not found");
+                }
+
+                // Convert room index to user floor
+                // Room 0 = Floor 3 (top), Room 1 = Floor 2, Room 2 = Floor 1 (bottom), Room 3 = Pyre (floor 0)
+                if (roomIndex >= 0 && roomIndex <= 3)
+                {
+                    int userFloor = 3 - roomIndex; // This gives: 0->3, 1->2, 2->1, 3->0 (pyre)
+                    MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: Converting room {roomIndex} to floor {userFloor}");
+                    return userFloor;
+                }
+
+                return -1;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetSelectedFloor error: {ex.Message}");
+                return -1;
+            }
+        }
+
+        private object GetRoom(int roomIndex)
+        {
+            if (_roomManager == null || _getRoomMethod == null)
+            {
+                FindManagers();
+                if (_roomManager == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("GetRoom: RoomManager is null");
+                    return null;
+                }
+                if (_getRoomMethod == null)
+                {
+                    MonsterTrainAccessibility.LogInfo("GetRoom: _getRoomMethod is null");
+                    return null;
+                }
+            }
+
+            try
+            {
+                var room = _getRoomMethod?.Invoke(_roomManager, new object[] { roomIndex });
+                MonsterTrainAccessibility.LogInfo($"GetRoom({roomIndex}): {(room != null ? room.GetType().Name : "null")}");
+                return room;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetRoom({roomIndex}) error: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get a text summary of what's on a specific floor (for floor targeting).
+        /// Floor numbers are 1-3 where 1 is bottom, 3 is top (closest to pyre).
+        /// </summary>
+        public string GetFloorSummary(int floorNumber)
+        {
+            try
+            {
+                // Convert user-facing floor number (1-3) to internal room index
+                // Monster Train room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // User floor numbers: 1=bottom, 2=middle, 3=top
+                // So: userFloor 1 -> room 2, userFloor 2 -> room 1, userFloor 3 -> room 0
+                int roomIndex = 3 - floorNumber;
+
+                var room = GetRoom(roomIndex);
+                if (room == null)
+                {
+                    return $"Floor {floorNumber}: Unknown";
+                }
+
+                var units = GetUnitsInRoom(room);
+                if (units.Count == 0)
+                {
+                    return "Empty";
+                }
+
+                var friendlyUnits = new List<string>();
+                var enemyUnits = new List<string>();
+
+                foreach (var unit in units)
+                {
+                    string name = GetUnitName(unit);
+                    int hp = GetUnitHP(unit);
+                    int attack = GetUnitAttack(unit);
+                    string description = $"{name} {attack}/{hp}";
+
+                    if (IsEnemyUnit(unit))
+                    {
+                        enemyUnits.Add(description);
+                    }
+                    else
+                    {
+                        friendlyUnits.Add(description);
+                    }
+                }
+
+                var parts = new List<string>();
+                if (friendlyUnits.Count > 0)
+                {
+                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
+                }
+                if (enemyUnits.Count > 0)
+                {
+                    parts.Add($"Enemies: {string.Join(", ", enemyUnits)}");
+                }
+
+                return string.Join(". ", parts);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting floor summary: {ex.Message}");
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// Get a list of all enemy units on all floors (for unit targeting).
+        /// Returns a list of formatted strings like "Armored Shiv 10/20 on floor 2"
+        /// </summary>
+        public List<string> GetAllEnemies()
+        {
+            var enemies = new List<string>();
+            try
+            {
+                // Check all 3 floors (user floors 1-3)
+                // Room indices: 0=top floor, 1=middle, 2=bottom
+                for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
+                {
+                    int roomIndex = 3 - floorNumber; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
+                    if (room == null) continue;
+
+                    var units = GetUnitsInRoom(room);
+                    foreach (var unit in units)
+                    {
+                        if (IsEnemyUnit(unit))
+                        {
+                            string name = GetUnitName(unit);
+                            int hp = GetUnitHP(unit);
+                            int attack = GetUnitAttack(unit);
+                            enemies.Add($"{name} {attack}/{hp} on floor {floorNumber}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting all enemies: {ex.Message}");
+            }
+            return enemies;
+        }
+
+        /// <summary>
+        /// Get a list of all friendly units on all floors (for unit targeting).
+        /// Returns a list of formatted strings like "Train Steward 5/8 on floor 1"
+        /// </summary>
+        public List<string> GetAllFriendlyUnits()
+        {
+            var friendlies = new List<string>();
+            try
+            {
+                // Check all 3 floors (user floors 1-3)
+                // Room indices: 0=top floor, 1=middle, 2=bottom
+                for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
+                {
+                    int roomIndex = 3 - floorNumber; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
+                    if (room == null) continue;
+
+                    var units = GetUnitsInRoom(room);
+                    foreach (var unit in units)
+                    {
+                        if (!IsEnemyUnit(unit))
+                        {
+                            string name = GetUnitName(unit);
+                            int hp = GetUnitHP(unit);
+                            int attack = GetUnitAttack(unit);
+                            friendlies.Add($"{name} {attack}/{hp} on floor {floorNumber}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting friendly units: {ex.Message}");
+            }
+            return friendlies;
+        }
+
+        /// <summary>
+        /// Get a list of all units (both friendly and enemy) on all floors.
+        /// </summary>
+        public List<string> GetAllUnits()
+        {
+            var allUnits = new List<string>();
+            allUnits.AddRange(GetAllFriendlyUnits());
+            allUnits.AddRange(GetAllEnemies());
+            return allUnits;
+        }
+
+        private List<object> GetUnitsInRoom(object room)
+        {
+            var units = new List<object>();
+            try
+            {
+                var roomType = room.GetType();
+
+                // First try AddCharactersToList method - the primary way to get characters from a room
+                // This method signature is: AddCharactersToList(List<CharacterState>, Team.Type, bool)
+                // We need to call it for BOTH team types to get all units
+                var addCharsMethods = roomType.GetMethods().Where(m => m.Name == "AddCharactersToList").ToArray();
+
+                // Find the Team.Type enum at runtime
+                Type teamTypeEnum = null;
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    teamTypeEnum = assembly.GetType("Team+Type") ?? assembly.GetType("Team`Type");
+                    if (teamTypeEnum != null) break;
+
+                    // Try to find nested type
+                    var teamType = assembly.GetType("Team");
+                    if (teamType != null)
+                    {
+                        teamTypeEnum = teamType.GetNestedType("Type");
+                        if (teamTypeEnum != null) break;
+                    }
+                }
+
+                foreach (var addCharsMethod in addCharsMethods)
+                {
+                    var parameters = addCharsMethod.GetParameters();
+                    // Look for the overload with List<T>, Team.Type, bool
+                    if (parameters.Length >= 2)
+                    {
+                        var listType = parameters[0].ParameterType;
+                        var secondParamType = parameters[1].ParameterType;
+
+                        // Check if it's a List type and the second param is an enum (Team.Type)
+                        if (listType.IsGenericType && listType.GetGenericTypeDefinition() == typeof(List<>) && secondParamType.IsEnum)
+                        {
+                            try
+                            {
+                                // Get all enum values for Team.Type (Monsters=0, Heroes=1)
+                                var enumValues = Enum.GetValues(secondParamType);
+
+                                foreach (var teamValue in enumValues)
+                                {
+                                    // Create a new instance of the typed list for each call
+                                    var charList = Activator.CreateInstance(listType);
+
+                                    // Build the argument array
+                                    var args = new object[parameters.Length];
+                                    args[0] = charList;
+                                    args[1] = teamValue; // Use the actual team type enum value
+
+                                    // Fill remaining params with defaults
+                                    for (int i = 2; i < parameters.Length; i++)
+                                    {
+                                        args[i] = parameters[i].ParameterType.IsValueType
+                                            ? Activator.CreateInstance(parameters[i].ParameterType)
+                                            : null;
+                                    }
+
+                                    // Call the method
+                                    addCharsMethod.Invoke(room, args);
+
+                                    // Extract results from the typed list
+                                    if (charList is System.Collections.IEnumerable enumerable)
+                                    {
+                                        foreach (var c in enumerable)
+                                        {
+                                            if (c != null && !units.Contains(c))
+                                            {
+                                                units.Add(c);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (units.Count > 0)
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"GetUnitsInRoom found {units.Count} units via AddCharactersToList (both teams)");
+                                    return units;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                MonsterTrainAccessibility.LogInfo($"AddCharactersToList with team types failed: {ex.Message}");
+                            }
+                        }
+                        // Also handle the WeakRefList overload if present
+                        else if (listType.Name.Contains("WeakRefList") && secondParamType.IsEnum)
+                        {
+                            // Skip WeakRefList - prefer List<T> overload
+                            continue;
+                        }
+                    }
+                    // Fallback for single-param overloads (if any)
+                    else if (parameters.Length == 1)
+                    {
+                        var listType = parameters[0].ParameterType;
+                        if (listType.IsGenericType && listType.GetGenericTypeDefinition() == typeof(List<>))
+                        {
+                            try
+                            {
+                                var charList = Activator.CreateInstance(listType);
+                                addCharsMethod.Invoke(room, new object[] { charList });
+
+                                if (charList is System.Collections.IEnumerable enumerable)
+                                {
+                                    foreach (var c in enumerable)
+                                    {
+                                        if (c != null) units.Add(c);
+                                    }
+                                    if (units.Count > 0)
+                                    {
+                                        MonsterTrainAccessibility.LogInfo($"GetUnitsInRoom found {units.Count} units via AddCharactersToList (single param)");
+                                        return units;
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                MonsterTrainAccessibility.LogInfo($"AddCharactersToList single-param failed: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: try to access the characters field directly
+                string[] fieldNames = { "characters", "_characters", "m_characters", "characterList" };
+                foreach (var fieldName in fieldNames)
+                {
+                    var charsField = roomType.GetField(fieldName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (charsField != null)
+                    {
+                        var chars = charsField.GetValue(room);
+                        if (chars != null)
+                        {
+                            if (chars is System.Collections.IEnumerable enumerable)
+                            {
+                                foreach (var c in enumerable)
+                                {
+                                    if (c != null)
+                                    {
+                                        units.Add(c);
+                                    }
+                                }
+                                if (units.Count > 0)
+                                {
+                                    MonsterTrainAccessibility.LogInfo($"GetUnitsInRoom found {units.Count} units via field '{fieldName}'");
+                                    return units;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Log available methods for debugging if nothing worked
+                if (units.Count == 0)
+                {
+                    var methods = roomType.GetMethods().Where(m => m.Name.Contains("Character") || m.Name.Contains("Unit")).ToList();
+                    var methodLog = string.Join(", ", methods.Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})"));
+                    MonsterTrainAccessibility.LogInfo($"Room character-related methods: {methodLog}");
+                }
+
+                MonsterTrainAccessibility.LogInfo($"GetUnitsInRoom found {units.Count} units (no method worked)");
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting units: {ex.Message}");
+            }
+            return units;
+        }
+
+        private string GetUnitName(object characterState)
+        {
+            try
+            {
+                string name = null;
+
+                // Try GetLocName or similar
+                var type = characterState.GetType();
+                var getNameMethod = type.GetMethod("GetName") ??
+                                   type.GetMethod("GetLocName") ??
+                                   type.GetMethod("GetTitle");
+                if (getNameMethod != null)
+                {
+                    name = getNameMethod.Invoke(characterState, null) as string;
+                }
+
+                // Try getting CharacterData and its name
+                if (string.IsNullOrEmpty(name))
+                {
+                    var getDataMethod = type.GetMethod("GetCharacterData");
+                    if (getDataMethod != null)
+                    {
+                        var data = getDataMethod.Invoke(characterState, null);
+                        if (data != null && _getCharacterNameMethod != null)
+                        {
+                            name = _getCharacterNameMethod.Invoke(data, null) as string;
+                        }
+                    }
+                }
+
+                return StripRichTextTags(name) ?? "Unit";
+            }
+            catch { }
+            return "Unit";
+        }
+
+        private int GetUnitHP(object characterState)
+        {
+            try
+            {
+                if (_getHPMethod == null)
+                {
+                    var type = characterState.GetType();
+                    _getHPMethod = type.GetMethod("GetHP");
+                }
+                var result = _getHPMethod?.Invoke(characterState, null);
+                if (result is int hp) return hp;
+            }
+            catch { }
+            return 0;
+        }
+
+        private int GetUnitAttack(object characterState)
+        {
+            try
+            {
+                if (_getAttackDamageMethod == null)
+                {
+                    var type = characterState.GetType();
+                    _getAttackDamageMethod = type.GetMethod("GetAttackDamage");
+                }
+                var result = _getAttackDamageMethod?.Invoke(characterState, null);
+                if (result is int attack) return attack;
+            }
+            catch { }
+            return 0;
+        }
+
+        private bool IsEnemyUnit(object characterState)
+        {
+            try
+            {
+                if (_getTeamTypeMethod == null)
+                {
+                    var type = characterState.GetType();
+                    _getTeamTypeMethod = type.GetMethod("GetTeamType");
+                }
+                var team = _getTeamTypeMethod?.Invoke(characterState, null);
+                string teamStr = team?.ToString() ?? "null";
+                MonsterTrainAccessibility.LogInfo($"IsEnemyUnit: team = {teamStr}");
+                // In Monster Train, "Heroes" are the enemies attacking the train
+                return teamStr == "Heroes";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"IsEnemyUnit error: {ex.Message}");
+            }
+            return false;
+        }
+
+        #endregion
+
+        #region Resource Reading
+
+        /// <summary>
+        /// Announce current resources
+        /// </summary>
+        public void AnnounceResources()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+
+                int energy = GetCurrentEnergy();
+                if (energy >= 0)
+                {
+                    sb.Append($"Ember: {energy}. ");
+                }
+
+                int gold = GetGold();
+                if (gold >= 0)
+                {
+                    sb.Append($"Gold: {gold}. ");
+                }
+
+                int pyreHP = GetPyreHealth();
+                int maxPyreHP = GetMaxPyreHealth();
+                if (pyreHP >= 0)
+                {
+                    sb.Append($"Pyre: {pyreHP} of {maxPyreHP}. ");
+                }
+
+                var hand = GetHandCards();
+                if (hand != null)
+                {
+                    sb.Append($"Cards in hand: {hand.Count}.");
+                }
+
+                MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error announcing resources: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read resources", false);
+            }
+        }
+
+        private int GetCurrentEnergy()
+        {
+            if (_playerManager == null || _getEnergyMethod == null)
+            {
+                FindManagers();
+            }
+
+            try
+            {
+                var result = _getEnergyMethod?.Invoke(_playerManager, null);
+                if (result is int energy) return energy;
+            }
+            catch { }
+            return -1;
+        }
+
+        public int GetPyreHealth()
+        {
+            if (_saveManager == null || _getTowerHPMethod == null)
+            {
+                FindManagers();
+            }
+
+            try
+            {
+                var result = _getTowerHPMethod?.Invoke(_saveManager, null);
+                if (result is int hp) return hp;
+            }
+            catch { }
+            return -1;
+        }
+
+        public int GetMaxPyreHealth()
+        {
+            try
+            {
+                var result = _getMaxTowerHPMethod?.Invoke(_saveManager, null);
+                if (result is int hp) return hp;
+            }
+            catch { }
+            return -1;
+        }
+
+        private int GetGold()
+        {
+            if (_saveManager == null || _getGoldMethod == null)
+            {
+                FindManagers();
+            }
+
+            try
+            {
+                var result = _getGoldMethod?.Invoke(_saveManager, null);
+                if (result is int gold) return gold;
+            }
+            catch { }
+            return -1;
+        }
+
+        #endregion
+
+        #region Enemy Reading
+
+        /// <summary>
+        /// Announce all units (player monsters and enemies) on each floor
+        /// </summary>
+        public void AnnounceEnemies()
+        {
+            try
+            {
+                var output = MonsterTrainAccessibility.ScreenReader;
+                output?.Speak("Units on train:", false);
+
+                bool hasAnyUnits = false;
+                int roomsFound = 0;
+                int totalUnits = 0;
+
+                // Iterate user floors from bottom (1) to top (3), then pyre room
+                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // User floors: 1=bottom, 2=middle, 3=top
+                int[] userFloors = { 1, 2, 3 };
+
+                foreach (int userFloor in userFloors)
+                {
+                    int roomIndex = 3 - userFloor; // Convert user floor to room index
+                    var room = GetRoom(roomIndex);
+                    if (room == null)
+                    {
+                        MonsterTrainAccessibility.LogInfo($"Room {roomIndex} (floor {userFloor}) is null");
+                        continue;
+                    }
+                    roomsFound++;
+
+                    var units = GetUnitsInRoom(room);
+                    totalUnits += units.Count;
+                    MonsterTrainAccessibility.LogInfo($"Room {roomIndex} (floor {userFloor}) has {units.Count} units");
+
+                    string floorName = $"Floor {userFloor}";
+                    var playerDescriptions = new List<string>();
+                    var enemyDescriptions = new List<string>();
+
+                    foreach (var unit in units)
+                    {
+                        bool isEnemy = IsEnemyUnit(unit);
+                        string unitDesc = GetDetailedEnemyDescription(unit);
+
+                        if (isEnemy)
+                        {
+                            enemyDescriptions.Add(unitDesc);
+                        }
+                        else
+                        {
+                            playerDescriptions.Add(unitDesc);
+                        }
+                    }
+
+                    // Announce floor if it has any units
+                    if (playerDescriptions.Count > 0 || enemyDescriptions.Count > 0)
+                    {
+                        hasAnyUnits = true;
+                        output?.Queue($"{floorName}:");
+
+                        // Announce player units first
+                        foreach (var desc in playerDescriptions)
+                        {
+                            output?.Queue($"  Your unit: {desc}");
+                        }
+
+                        // Then announce enemies
+                        foreach (var desc in enemyDescriptions)
+                        {
+                            output?.Queue($"  Enemy: {desc}");
+                        }
+                    }
+                }
+
+                // Also check pyre room (room index 3)
+                var pyreRoom = GetRoom(3);
+                if (pyreRoom != null)
+                {
+                    roomsFound++;
+                    var pyreUnits = GetUnitsInRoom(pyreRoom);
+                    totalUnits += pyreUnits.Count;
+                    // Pyre room units would be announced here if needed, but typically empty
+                }
+
+                MonsterTrainAccessibility.LogInfo($"AnnounceEnemies: found {roomsFound} rooms, {totalUnits} total units, hasAnyUnits: {hasAnyUnits}");
+
+                if (!hasAnyUnits)
+                {
+                    output?.Queue("No units on the train");
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error announcing units: {ex.Message}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Could not read units", false);
+            }
+        }
+
+        /// <summary>
+        /// Get a detailed description of an enemy unit including stats, status effects, and intent
+        /// </summary>
+        private string GetDetailedEnemyDescription(object unit)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+
+                // Get basic info
+                string name = GetUnitName(unit);
+                int hp = GetUnitHP(unit);
+                int maxHp = GetUnitMaxHP(unit);
+                int attack = GetUnitAttack(unit);
+
+                sb.Append($"{name}: {attack} attack, {hp}");
+                if (maxHp > 0 && maxHp != hp)
+                {
+                    sb.Append($" of {maxHp}");
+                }
+                sb.Append(" health");
+
+                // Get status effects
+                string statusEffects = GetUnitStatusEffects(unit);
+                if (!string.IsNullOrEmpty(statusEffects))
+                {
+                    sb.Append($". Status: {statusEffects}");
+                }
+
+                // Get intent (for bosses or units with visible intent)
+                string intent = GetUnitIntent(unit);
+                if (!string.IsNullOrEmpty(intent))
+                {
+                    sb.Append($". Intent: {intent}");
+                }
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting enemy description: {ex.Message}");
+                return GetUnitName(unit) ?? "Unknown enemy";
+            }
+        }
+
+        /// <summary>
+        /// Get the maximum HP of a unit
+        /// </summary>
+        private int GetUnitMaxHP(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var method = type.GetMethod("GetMaxHP", Type.EmptyTypes);
+                if (method != null)
+                {
+                    var result = method.Invoke(characterState, null);
+                    if (result is int hp) return hp;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        /// <summary>
+        /// Get status effects on a unit as a readable string
+        /// </summary>
+        private string GetUnitStatusEffects(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+
+                // Try GetStatusEffects method which takes an out parameter
+                var getStatusMethod = type.GetMethods()
+                    .FirstOrDefault(m => m.Name == "GetStatusEffects" && m.GetParameters().Length >= 1);
+
+                if (getStatusMethod != null)
+                {
+                    // Create the list parameter
+                    var parameters = getStatusMethod.GetParameters();
+                    var listType = parameters[0].ParameterType;
+
+                    // Handle out parameter - need to create array for Invoke
+                    var args = new object[parameters.Length];
+
+                    // For out parameters, we pass null and get the value back
+                    if (parameters[0].IsOut)
+                    {
+                        args[0] = null;
+                    }
+                    else
+                    {
+                        // Create empty list
+                        args[0] = Activator.CreateInstance(listType);
+                    }
+
+                    // Fill additional params with defaults
+                    for (int i = 1; i < parameters.Length; i++)
+                    {
+                        if (parameters[i].ParameterType == typeof(bool))
+                            args[i] = false;
+                        else
+                            args[i] = parameters[i].ParameterType.IsValueType
+                                ? Activator.CreateInstance(parameters[i].ParameterType)
+                                : null;
+                    }
+
+                    getStatusMethod.Invoke(characterState, args);
+
+                    // The list should now be populated (args[0] for out param)
+                    var statusList = args[0] as System.Collections.IList;
+                    if (statusList != null && statusList.Count > 0)
+                    {
+                        var effects = new List<string>();
+                        foreach (var statusStack in statusList)
+                        {
+                            string effectName = GetStatusEffectName(statusStack);
+                            int stacks = GetStatusEffectStacks(statusStack);
+
+                            if (!string.IsNullOrEmpty(effectName))
+                            {
+                                if (stacks > 1)
+                                    effects.Add($"{effectName} {stacks}");
+                                else
+                                    effects.Add(effectName);
+                            }
+                        }
+
+                        if (effects.Count > 0)
+                        {
+                            return string.Join(", ", effects);
+                        }
+                    }
+                }
+
+                // Alternative: try to get individual status effects by common IDs
+                var commonStatuses = new[] { "armor", "damage shield", "rage", "quick", "multistrike", "regen", "sap", "dazed", "rooted", "spell weakness" };
+                var foundEffects = new List<string>();
+
+                var getStacksMethod = type.GetMethod("GetStatusEffectStacks", new[] { typeof(string) });
+                if (getStacksMethod != null)
+                {
+                    foreach (var statusId in commonStatuses)
+                    {
+                        try
+                        {
+                            var result = getStacksMethod.Invoke(characterState, new object[] { statusId });
+                            if (result is int stacks && stacks > 0)
+                            {
+                                string displayName = FormatStatusName(statusId);
+                                if (stacks > 1)
+                                    foundEffects.Add($"{displayName} {stacks}");
+                                else
+                                    foundEffects.Add(displayName);
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (foundEffects.Count > 0)
+                    {
+                        return string.Join(", ", foundEffects);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting status effects: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the name of a status effect from a StatusEffectStack
+        /// </summary>
+        private string GetStatusEffectName(object statusStack)
+        {
+            try
+            {
+                var stackType = statusStack.GetType();
+
+                // Try to get State property which returns StatusEffectState
+                var stateProp = stackType.GetProperty("State");
+                if (stateProp != null)
+                {
+                    var state = stateProp.GetValue(statusStack);
+                    if (state != null)
+                    {
+                        var stateType = state.GetType();
+
+                        // Try GetStatusId
+                        var getIdMethod = stateType.GetMethod("GetStatusId", Type.EmptyTypes);
+                        if (getIdMethod != null)
+                        {
+                            var id = getIdMethod.Invoke(state, null) as string;
+                            if (!string.IsNullOrEmpty(id))
+                            {
+                                return FormatStatusName(id);
+                            }
+                        }
+
+                        // Try GetName or similar
+                        var getNameMethod = stateType.GetMethod("GetName", Type.EmptyTypes) ??
+                                           stateType.GetMethod("GetDisplayName", Type.EmptyTypes);
+                        if (getNameMethod != null)
+                        {
+                            var name = getNameMethod.Invoke(state, null) as string;
+                            if (!string.IsNullOrEmpty(name))
+                            {
+                                return StripRichTextTags(name);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get stack count from a StatusEffectStack
+        /// </summary>
+        private int GetStatusEffectStacks(object statusStack)
+        {
+            try
+            {
+                var stackType = statusStack.GetType();
+
+                // Try Count property
+                var countProp = stackType.GetProperty("Count");
+                if (countProp != null)
+                {
+                    var result = countProp.GetValue(statusStack);
+                    if (result is int count) return count;
+                }
+
+                // Try count field
+                var countField = stackType.GetField("count", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (countField != null)
+                {
+                    var result = countField.GetValue(statusStack);
+                    if (result is int count) return count;
+                }
+            }
+            catch { }
+            return 1;
+        }
+
+        /// <summary>
+        /// Format a status effect ID into a readable name
+        /// </summary>
+        private string FormatStatusName(string statusId)
+        {
+            if (string.IsNullOrEmpty(statusId)) return statusId;
+
+            // Convert snake_case or camelCase to Title Case
+            statusId = statusId.Replace("_", " ");
+            statusId = System.Text.RegularExpressions.Regex.Replace(statusId, "([a-z])([A-Z])", "$1 $2");
+
+            // Capitalize first letter of each word
+            var words = statusId.Split(' ');
+            for (int i = 0; i < words.Length; i++)
+            {
+                if (words[i].Length > 0)
+                {
+                    words[i] = char.ToUpper(words[i][0]) + words[i].Substring(1).ToLower();
+                }
+            }
+
+            return string.Join(" ", words);
+        }
+
+        /// <summary>
+        /// Get the intent/action of an enemy (what they will do)
+        /// </summary>
+        private string GetUnitIntent(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+
+                // Check if this is a boss with a BossState
+                var getBossStateMethod = type.GetMethod("GetBossState", Type.EmptyTypes);
+                if (getBossStateMethod != null)
+                {
+                    var bossState = getBossStateMethod.Invoke(characterState, null);
+                    if (bossState != null)
+                    {
+                        string bossIntent = GetBossIntent(bossState);
+                        if (!string.IsNullOrEmpty(bossIntent))
+                        {
+                            return bossIntent;
+                        }
+                    }
+                }
+
+                // For regular enemies, try to get their current action/behavior
+                // Check for ActionGroupState or similar
+                var getActionMethod = type.GetMethod("GetCurrentAction", Type.EmptyTypes) ??
+                                     type.GetMethod("GetNextAction", Type.EmptyTypes);
+                if (getActionMethod != null)
+                {
+                    var action = getActionMethod.Invoke(characterState, null);
+                    if (action != null)
+                    {
+                        return GetActionDescription(action);
+                    }
+                }
+
+                // Check attack damage to infer basic intent
+                int attack = GetUnitAttack(characterState);
+                if (attack > 0)
+                {
+                    return $"Will attack for {attack} damage";
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting unit intent: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the intent of a boss enemy
+        /// </summary>
+        private string GetBossIntent(object bossState)
+        {
+            try
+            {
+                var bossType = bossState.GetType();
+
+                // Try to get the current action group
+                var getActionGroupMethod = bossType.GetMethod("GetCurrentActionGroup", Type.EmptyTypes) ??
+                                          bossType.GetMethod("GetActionGroup", Type.EmptyTypes);
+
+                object actionGroup = null;
+                if (getActionGroupMethod != null)
+                {
+                    actionGroup = getActionGroupMethod.Invoke(bossState, null);
+                }
+
+                // Try via field if method not found
+                if (actionGroup == null)
+                {
+                    var actionGroupField = bossType.GetField("_actionGroup", BindingFlags.NonPublic | BindingFlags.Instance) ??
+                                          bossType.GetField("actionGroup", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (actionGroupField != null)
+                    {
+                        actionGroup = actionGroupField.GetValue(bossState);
+                    }
+                }
+
+                if (actionGroup != null)
+                {
+                    var agType = actionGroup.GetType();
+
+                    // Get next action
+                    var getNextActionMethod = agType.GetMethod("GetNextAction", Type.EmptyTypes);
+                    if (getNextActionMethod != null)
+                    {
+                        var nextAction = getNextActionMethod.Invoke(actionGroup, null);
+                        if (nextAction != null)
+                        {
+                            return GetBossActionDescription(nextAction);
+                        }
+                    }
+
+                    // Get all actions
+                    var getActionsMethod = agType.GetMethod("GetActions", Type.EmptyTypes);
+                    if (getActionsMethod != null)
+                    {
+                        var actions = getActionsMethod.Invoke(actionGroup, null) as System.Collections.IList;
+                        if (actions != null && actions.Count > 0)
+                        {
+                            return GetBossActionDescription(actions[0]);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting boss intent: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get description of a boss action
+        /// </summary>
+        private string GetBossActionDescription(object bossAction)
+        {
+            try
+            {
+                var actionType = bossAction.GetType();
+                var parts = new List<string>();
+
+                // Get target room
+                var getTargetRoomMethod = actionType.GetMethod("GetTargetedRoomIndex", Type.EmptyTypes);
+                if (getTargetRoomMethod != null)
+                {
+                    var result = getTargetRoomMethod.Invoke(bossAction, null);
+                    if (result is int roomIndex && roomIndex >= 0)
+                    {
+                        string floorName = roomIndex == 0 ? "pyre room" : $"floor {roomIndex}";
+                        parts.Add($"targeting {floorName}");
+                    }
+                }
+
+                // Get effects/damage
+                var getEffectsMethod = actionType.GetMethod("GetEffects", Type.EmptyTypes);
+                if (getEffectsMethod != null)
+                {
+                    var effects = getEffectsMethod.Invoke(bossAction, null) as System.Collections.IList;
+                    if (effects != null && effects.Count > 0)
+                    {
+                        foreach (var effect in effects)
+                        {
+                            string effectDesc = GetActionDescription(effect);
+                            if (!string.IsNullOrEmpty(effectDesc))
+                            {
+                                parts.Add(effectDesc);
+                                break; // Just get the first meaningful effect
+                            }
+                        }
+                    }
+                }
+
+                if (parts.Count > 0)
+                {
+                    return string.Join(", ", parts);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting boss action description: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get description of a card/action effect
+        /// </summary>
+        private string GetActionDescription(object action)
+        {
+            try
+            {
+                var actionType = action.GetType();
+
+                // Try GetDescription
+                var getDescMethod = actionType.GetMethod("GetDescription", Type.EmptyTypes);
+                if (getDescMethod != null)
+                {
+                    var desc = getDescMethod.Invoke(action, null) as string;
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        return StripRichTextTags(desc);
+                    }
+                }
+
+                // Try to get damage amount
+                var getDamageMethod = actionType.GetMethod("GetDamageAmount", Type.EmptyTypes) ??
+                                     actionType.GetMethod("GetParamInt", Type.EmptyTypes);
+                if (getDamageMethod != null)
+                {
+                    var result = getDamageMethod.Invoke(action, null);
+                    if (result is int damage && damage > 0)
+                    {
+                        return $"{damage} damage";
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        #endregion
+
+        #region Combat Events
+
+        /// <summary>
+        /// Announce damage dealt
+        /// </summary>
+        public void OnDamageDealt(string sourceName, string targetName, int damage)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDamage.Value)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{sourceName} deals {damage} to {targetName}");
+        }
+
+        /// <summary>
+        /// Announce unit death with floor info
+        /// </summary>
+        public void OnUnitDied(string unitName, bool isEnemy, int userFloor = -1)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDeaths.Value)
+                return;
+
+            string prefix = isEnemy ? "Enemy" : "Your";
+            string floorInfo = userFloor > 0 ? $" on floor {userFloor}" : "";
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{prefix} {unitName} died{floorInfo}");
+        }
+
+        /// <summary>
+        /// Announce status effect applied
+        /// </summary>
+        public void OnStatusEffectApplied(string unitName, string effectName, int stacks)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {effectName} {stacks}");
+        }
+
+        /// <summary>
+        /// Announce unit spawned (entering the battlefield)
+        /// </summary>
+        public void OnUnitSpawned(string unitName, bool isEnemy, int floorIndex)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceSpawns.Value)
+                return;
+
+            // Skip invalid unit names
+            if (string.IsNullOrEmpty(unitName) || unitName == "Unit")
+                return;
+
+            // Determine floor name - handle invalid floor indices
+            string floorName;
+            if (floorIndex <= 0)
+            {
+                // Floor index 0 is pyre room, negative means unknown
+                floorName = floorIndex == 0 ? "pyre room" : "the battlefield";
+            }
+            else
+            {
+                floorName = $"floor {floorIndex}";
+            }
+
+            if (isEnemy)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy {unitName} enters on {floorName}");
+            }
+            else
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} summoned on {floorName}");
+            }
+        }
+
+        /// <summary>
+        /// Announce enemies ascending floors
+        /// </summary>
+        public void OnEnemiesAscended()
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue("Enemies ascend");
+        }
+
+        /// <summary>
+        /// Announce pyre damage
+        /// </summary>
+        public void OnPyreDamaged(int damage, int remainingHP)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre takes {damage} damage! {remainingHP} health remaining");
+        }
+
+        /// <summary>
+        /// Announce enemy dialogue/chatter (speech bubbles)
+        /// </summary>
+        public void OnEnemyDialogue(string text)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDialogue.Value)
+                return;
+
+            if (!string.IsNullOrEmpty(text))
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy says: {text}");
+            }
+        }
+
+        /// <summary>
+        /// Announce when combat resolution phase starts (units attacking each other)
+        /// </summary>
+        public void OnCombatResolutionStarted()
+        {
+            if (!IsInBattle)
+                return;
+
+            // Only announce if there are units to fight
+            MonsterTrainAccessibility.ScreenReader?.Queue("Combat!");
+        }
+
+        /// <summary>
+        /// Announce when an artifact/relic triggers
+        /// </summary>
+        public void OnRelicTriggered(string relicName)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceRelicTriggers.Value)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{relicName} triggered");
+        }
+
+        /// <summary>
+        /// Announce when a card is exhausted/consumed (removed from deck)
+        /// </summary>
+        public void OnCardExhausted(string cardName)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{cardName} consumed");
+        }
+
+        /// <summary>
+        /// Announce pyre healing
+        /// </summary>
+        public void OnPyreHealed(int amount, int currentHP)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre healed for {amount}. {currentHP} health");
+        }
+
+        /// <summary>
+        /// Announce status effect removed from a unit
+        /// </summary>
+        public void OnStatusEffectRemoved(string unitName, string effectName, int stacks)
+        {
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
+                return;
+
+            string message = stacks > 1
+                ? $"{unitName} loses {stacks} {effectName}"
+                : $"{unitName} loses {effectName}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+        }
+
+        /// <summary>
+        /// Announce when all enemies in the current wave have been defeated
+        /// </summary>
+        public void OnAllEnemiesDefeated()
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue("All enemies defeated");
+        }
+
+        /// <summary>
+        /// Announce combat phase transitions (MonsterTurn, HeroTurn, BossAction, etc.)
+        /// </summary>
+        public void OnCombatPhaseChanged(string phaseName)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(phaseName);
+        }
+
+        /// <summary>
+        /// Announce when a unit's max HP is increased
+        /// </summary>
+        public void OnMaxHPBuffed(string unitName, int amount)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {amount} max health");
+        }
+
+        /// <summary>
+        /// Get a brief description of a unit for targeting announcements.
+        /// </summary>
+        public string GetTargetUnitDescription(object characterState)
+        {
+            if (characterState == null) return null;
+            try
+            {
+                string name = GetUnitName(characterState);
+                int hp = GetUnitHP(characterState);
+                int maxHp = GetUnitMaxHP(characterState);
+                int attack = GetUnitAttack(characterState);
+
+                var sb = new StringBuilder();
+                sb.Append($"{name} {attack} attack, {hp}");
+                if (maxHp > 0 && maxHp != hp)
+                    sb.Append($" of {maxHp}");
+                sb.Append(" health");
+
+                string statusEffects = GetUnitStatusEffects(characterState);
+                if (!string.IsNullOrEmpty(statusEffects))
+                {
+                    sb.Append($" ({statusEffects})");
+                }
+
+                bool isEnemy = IsEnemyUnit(characterState);
+                if (isEnemy)
+                {
+                    string intent = GetUnitIntent(characterState);
+                    if (!string.IsNullOrEmpty(intent))
+                    {
+                        sb.Append($". Intent: {intent}");
+                    }
+                }
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting target unit description: {ex.Message}");
+                return GetUnitName(characterState) ?? "Unknown unit";
+            }
+        }
+
+        /// <summary>
+        /// Get a detailed description of a unit including stats, status effects, and intent.
+        /// Public wrapper around GetDetailedEnemyDescription for use by patches.
+        /// </summary>
+        public string GetDetailedUnitDescription(object unit)
+        {
+            return GetDetailedEnemyDescription(unit);
+        }
+
+        /// <summary>
+        /// Get the current deck size
+        /// </summary>
+        public int GetDeckSize()
+        {
+            try
+            {
+                if (_cardManager == null)
+                {
+                    FindManagers();
+                }
+
+                if (_cardManager != null)
+                {
+                    var cardManagerType = _cardManager.GetType();
+
+                    var getCardsMethod = cardManagerType.GetMethod("GetAllCards", Type.EmptyTypes)
+                                      ?? cardManagerType.GetMethod("GetDeck", Type.EmptyTypes);
+                    if (getCardsMethod != null)
+                    {
+                        var cards = getCardsMethod.Invoke(_cardManager, null);
+                        if (cards is System.Collections.ICollection collection)
+                        {
+                            return collection.Count;
+                        }
+                    }
+
+                    var getCountMethod = cardManagerType.GetMethod("GetDeckCount", Type.EmptyTypes);
+                    if (getCountMethod != null)
+                    {
+                        var result = getCountMethod.Invoke(_cardManager, null);
+                        if (result is int count) return count;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting deck size: {ex.Message}");
+            }
+            return -1;
+        }
+
+        #endregion
+    }
+}
