@@ -6,6 +6,8 @@ using MonsterTrainAccessibility.Core;
 using MonsterTrainAccessibility.Help;
 using MonsterTrainAccessibility.Help.Contexts;
 using MonsterTrainAccessibility.Patches;
+using MonsterTrainAccessibility.Patches.Combat;
+using MonsterTrainAccessibility.Patches.Screens;
 using MonsterTrainAccessibility.Screens;
 using System;
 using UnityEngine;
@@ -44,10 +46,23 @@ namespace MonsterTrainAccessibility
         public static CardDraftAccessibility DraftHandler { get; private set; }
         public static MapAccessibility MapHandler { get; private set; }
 
-        private Harmony _harmony;
+        private static Harmony _harmony;
+        private static bool _initialized = false;
+        private static bool _handlersCreated = false;
+#pragma warning disable CS0414
+        private static bool _quitting;
+#pragma warning restore CS0414
 
         private void Awake()
         {
+            // Only initialize once — if the plugin MonoBehaviour is recreated, skip
+            if (_initialized)
+            {
+                Log = Logger;
+                Log.LogInfo("Plugin Awake() called again — already initialized, skipping");
+                return;
+            }
+
             Instance = this;
             Log = Logger;
 
@@ -78,14 +93,16 @@ namespace MonsterTrainAccessibility
                 _harmony = new Harmony(GUID);
                 ApplyPatches();
 
+                // Create MonoBehaviour handlers immediately on a persistent GameObject
+                CreateHandlers();
+
                 Log.LogInfo($"{NAME} loaded successfully!");
 
-                // Subscribe to scene loading events - create handlers when first real scene loads
+                // Subscribe to scene loading events for handler recovery
                 SceneManager.sceneLoaded += OnSceneLoaded;
                 Log.LogInfo("Subscribed to scene load events");
 
-                // Don't create handlers here - wait until first scene loads
-                // CreateHandlers();
+                _initialized = true;
             }
             catch (Exception ex)
             {
@@ -94,40 +111,14 @@ namespace MonsterTrainAccessibility
             }
         }
 
-        private bool _handlersCreated = false;
-        private bool _announcedReady = false;
-
-        private void Start()
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            Log.LogInfo("Plugin Start() called - MonoBehaviour is active");
-            // Don't create handlers here - they get destroyed during scene transitions
-            // Wait for the first real scene to load
-        }
+            Log?.LogInfo($"Scene loaded: {scene.name} (mode: {mode})");
 
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            Log.LogInfo($"Scene loaded: {scene.name} (mode: {mode})");
-
-            // Create handlers after a real game scene loads (not during initial BepInEx loading)
-            // Wait for a scene that indicates the game is actually running
-            if (!_handlersCreated && (scene.name == "main" || scene.name == "main_menu" || scene.name == "hud"))
-            {
-                Log.LogInfo($"Creating handlers on scene: {scene.name}");
-                CreateHandlers();
-                _handlersCreated = true;
-            }
-
-            // Announce ready once handlers are created
-            if (_handlersCreated && !_announcedReady)
-            {
-                _announcedReady = true;
-                ScreenReader?.Speak("Monster Train Accessibility ready", false);
-            }
-
-            // Verify handlers still exist
+            // Verify handlers still exist, recreate if destroyed
             if (_handlersCreated && MenuHandler == null)
             {
-                Log.LogWarning("MenuHandler was destroyed! Recreating...");
+                Log?.LogWarning("MenuHandler was destroyed! Recreating...");
                 CreateHandlers();
             }
         }
@@ -171,6 +162,19 @@ namespace MonsterTrainAccessibility
             UnlockScreenPatch.TryPatch(_harmony);
             KeyMappingScreenPatch.TryPatch(_harmony);
 
+            // Soul Savior, Soulforge, and additional screen patches
+            ChallengeProgressScreenPatch.TryPatch(_harmony);
+            EndlessMutatorDraftScreenPatch.TryPatch(_harmony);
+            RegionSelectionScreenPatch.TryPatch(_harmony);
+            SoulDraftScreenPatch.TryPatch(_harmony);
+            SoulProgressionScreenPatch.TryPatch(_harmony);
+            SoulSaviorMapScreenPatch.TryPatch(_harmony);
+            SoulSaviorRunSetupScreenPatch.TryPatch(_harmony);
+            SoulforgeScreenPatch.TryPatch(_harmony);
+            RunOpeningSoulSaviorScreenPatch.TryPatch(_harmony);
+            FirstTimeSettingsScreenPatch.TryPatch(_harmony);
+            CharacterDialogueScreenPatch.TryPatch(_harmony);
+
             // Combat event patches
             PlayerTurnStartPatch.TryPatch(_harmony);
             PlayerTurnEndPatch.TryPatch(_harmony);
@@ -205,14 +209,14 @@ namespace MonsterTrainAccessibility
             CardTargetingPatches.TryPatch(_harmony);
         }
 
-        private void CreateHandlers()
+        private static void CreateHandlers()
         {
             try
             {
                 Log.LogInfo("CreateHandlers: Creating handler GameObject");
                 // Create a persistent GameObject for all MonoBehaviour handlers
                 var handlerGO = new GameObject("MonsterTrainAccessibility_Handlers");
-                DontDestroyOnLoad(handlerGO);
+                UnityEngine.Object.DontDestroyOnLoad(handlerGO);
 
                 Log.LogInfo("CreateHandlers: Adding InputInterceptor");
                 InputHandler = handlerGO.AddComponent<InputInterceptor>();
@@ -228,6 +232,7 @@ namespace MonsterTrainAccessibility
                 Log.LogInfo("CreateHandlers: Adding UnitTargetingSystem");
                 UnitTargeting = handlerGO.AddComponent<UnitTargetingSystem>();
 
+                _handlersCreated = true;
                 Log.LogInfo("CreateHandlers: Complete");
             }
             catch (Exception ex)
@@ -247,14 +252,20 @@ namespace MonsterTrainAccessibility
                 new MainMenuHelp(),            // Priority 40
                 new ChallengesHelp(),          // Priority 45 - challenges screen
                 new ClanSelectionHelp(),       // Priority 50
+                new RegionSelectionHelp(),     // Priority 50 - region selection
                 new CompendiumHelp(),          // Priority 50 - compendium/logbook
+                new SoulProgressionHelp(),     // Priority 50 - soul progression
                 new MapHelp(),                 // Priority 60
+                new SoulSaviorHelp(),          // Priority 60 - soul savior map
                 new DeckViewHelp(),            // Priority 65 - deck viewing
                 new ShopHelp(),                // Priority 70
+                new SoulforgeHelp(),           // Priority 70 - soulforge crafting
                 new EventHelp(),               // Priority 70
                 new RewardsHelp(),             // Priority 75 - post-battle rewards
                 new CardDraftHelp(),           // Priority 80
                 new ChampionUpgradeHelp(),     // Priority 80 - champion upgrade
+                new SoulDraftHelp(),           // Priority 80 - soul draft
+                new MutatorDraftHelp(),        // Priority 80 - mutator draft
                 new ArtifactSelectionHelp(),   // Priority 80 - artifact/relic selection
                 new BattleIntroHelp(),         // Priority 85 - pre-battle screen
                 new BattleHelp(),              // Priority 90
@@ -266,108 +277,22 @@ namespace MonsterTrainAccessibility
             Log.LogInfo("Registered help contexts");
         }
 
-        // Debug: track game state
-        private float _lastStateCheckTime = 0f;
-        private string _lastDetectedScreen = "";
-        private bool _hasAnnouncedFirstScreen = false;
-
-        private void Update()
-        {
-            // Check game state every 2 seconds for debugging
-            if (Time.time - _lastStateCheckTime > 2f)
-            {
-                _lastStateCheckTime = Time.time;
-                TryDetectCurrentScreen();
-            }
-        }
-
-        private void TryDetectCurrentScreen()
-        {
-            try
-            {
-                // Try to find any active screen by looking for common screen types
-                string currentScreen = "Unknown";
-
-                // Look for AllGameManagers to see if game systems are loaded
-                var allManagersType = AccessTools.TypeByName("AllGameManagers");
-                if (allManagersType != null)
-                {
-                    var instanceProp = allManagersType.GetProperty("Instance", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                    if (instanceProp != null)
-                    {
-                        var instance = instanceProp.GetValue(null);
-                        if (instance != null)
-                        {
-                            // Game managers are loaded - try to get screen manager
-                            var screenManagerProp = allManagersType.GetProperty("ScreenManager");
-                            if (screenManagerProp != null)
-                            {
-                                var screenManager = screenManagerProp.GetValue(instance);
-                                if (screenManager != null)
-                                {
-                                    // Try to get current screen
-                                    var smType = screenManager.GetType();
-                                    var currentScreenProp = smType.GetProperty("CurrentScreen") ?? smType.GetProperty("ActiveScreen");
-                                    if (currentScreenProp != null)
-                                    {
-                                        var screen = currentScreenProp.GetValue(screenManager);
-                                        if (screen != null)
-                                        {
-                                            currentScreen = screen.GetType().Name;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Try GetCurrentScreen method
-                                        var getCurrentMethod = smType.GetMethod("GetCurrentScreen") ?? smType.GetMethod("GetActiveScreen");
-                                        if (getCurrentMethod != null && getCurrentMethod.GetParameters().Length == 0)
-                                        {
-                                            var screen = getCurrentMethod.Invoke(screenManager, null);
-                                            if (screen != null)
-                                            {
-                                                currentScreen = screen.GetType().Name;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // If screen changed, log and announce
-                if (currentScreen != _lastDetectedScreen)
-                {
-                    Log.LogInfo($"Detected screen change: {_lastDetectedScreen} -> {currentScreen}");
-                    _lastDetectedScreen = currentScreen;
-
-                    // Announce the first detected screen
-                    if (!_hasAnnouncedFirstScreen && currentScreen != "Unknown")
-                    {
-                        _hasAnnouncedFirstScreen = true;
-                        string readable = currentScreen.Replace("Screen", "");
-                        ScreenReader?.Speak($"{readable}. Press F1 for help.", false);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.LogError($"Error detecting screen: {ex.Message}");
-            }
-        }
-
         private void OnDestroy()
         {
-            Log.LogInfo("OnDestroy called - plugin shutting down");
+            // The plugin MonoBehaviour gets destroyed on scene transitions.
+            // Do NOT clean up here — Harmony patches and handlers must survive.
+            Log?.LogInfo("Plugin OnDestroy called (scene transition — not cleaning up)");
+        }
 
-            // Unsubscribe from scene events
+        private void OnApplicationQuit()
+        {
+            _quitting = true;
+            Log?.LogInfo("Application quitting — cleaning up");
+
             SceneManager.sceneLoaded -= OnSceneLoaded;
-
-            // Clean up
             ScreenReader?.Shutdown();
             _harmony?.UnpatchSelf();
 
-            // Destroy the handler GameObject (contains both InputHandler and MenuHandler)
             if (InputHandler != null && InputHandler.gameObject != null)
             {
                 Destroy(InputHandler.gameObject);

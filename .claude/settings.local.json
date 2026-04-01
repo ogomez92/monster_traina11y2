@@ -34,7 +34,20 @@
       "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Monster Train\\\\BepInEx\\\\LogOutput.log'' -Tail 60 | Select-String -Pattern ''GetSelectedFloor|GetSelectedRoom|floor|Floor''\")",
       "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\common\\\\Monster Train\\\\BepInEx\\\\LogOutput.log'' -Tail 80\")",
       "Bash(if exist nul del nul)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(ls /c/Python*/python.exe)",
+      "Read(//c/Users/**)",
+      "Bash(\"/c/Program Files/Python314/python\" -c \"print\\('hello'\\)\")",
+      "Bash(\"/c/Program Files/Python314/python\" /tmp/refactor_menu.py 2>&1)",
+      "Bash(\"/c/Program Files/Python314/python\" do_refactor.py)",
+      "Bash(\"/c/Program Files/Python314/python\" slim_menu.py)",
+      "Bash(for file:*)",
+      "Bash(do echo:*)",
+      "Bash(done)",
+      "Bash(od -An -tx1 -v \"C:/Program Files \\(x86\\)/Steam/steamapps/common/Monster Train 2/MonsterTrain2_Data/Managed/Assembly-CSharp.dll\")",
+      "Bash(od -An -c 'C:/Program Files \\(x86\\)/Steam/steamapps/common/Monster Train 2/MonsterTrain2_Data/Managed/Assembly-CSharp.dll')",
+      "Bash(for f:*)",
+      "Bash(do sed:*)"
     ]
   }
 }

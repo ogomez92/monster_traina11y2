@@ -16,7 +16,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 :: Game path
-set "GAME_PATH=C:\Program Files (x86)\Steam\steamapps\common\Monster Train"
+set "GAME_PATH=C:\Program Files (x86)\Steam\steamapps\common\Monster Train 2"
 
 :: Remove trailing backslash if present
 if "%GAME_PATH:~-1%"=="\" set "GAME_PATH=%GAME_PATH:~0,-1%"
@@ -25,9 +25,9 @@ echo.
 echo Using path: %GAME_PATH%
 
 :: Check if game path exists
-if not exist "%GAME_PATH%\MonsterTrain.exe" (
+if not exist "%GAME_PATH%\MonsterTrain2.exe" (
     echo.
-    echo WARNING: MonsterTrain.exe not found at %GAME_PATH%
+    echo WARNING: MonsterTrain2.exe not found at %GAME_PATH%
     echo The build may fail if Unity DLLs cannot be found.
     echo.
     set /p "CONTINUE=Continue anyway? (Y/N): "

@@ -1,3 +1,4 @@
+using MonsterTrainAccessibility.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -144,7 +145,7 @@ namespace MonsterTrainAccessibility.Core
                     if (string.IsNullOrEmpty(name) || name == (prefix + nameSuffix))
                         continue;
 
-                    name = Screens.BattleAccessibility.StripRichTextTags(name).Trim();
+                    name = TextUtilities.StripRichTextTags(name).Trim();
 
                     if (string.IsNullOrEmpty(name))
                         continue;
@@ -152,7 +153,7 @@ namespace MonsterTrainAccessibility.Core
                     string value;
                     if (!string.IsNullOrEmpty(tooltip) && tooltip != (prefix + tooltipSuffix))
                     {
-                        tooltip = Screens.BattleAccessibility.StripRichTextTags(tooltip).Trim();
+                        tooltip = TextUtilities.StripRichTextTags(tooltip).Trim();
                         value = $"{name}: {tooltip}";
                     }
                     else
@@ -211,7 +212,7 @@ namespace MonsterTrainAccessibility.Core
                     if (string.IsNullOrEmpty(name) || name == (traitName + "_CardText"))
                         continue;
 
-                    name = Screens.BattleAccessibility.StripRichTextTags(name).Trim();
+                    name = TextUtilities.StripRichTextTags(name).Trim();
                     if (string.IsNullOrEmpty(name)) continue;
 
                     string value;
@@ -219,7 +220,7 @@ namespace MonsterTrainAccessibility.Core
                         tooltip != (traitName + "_TooltipText") &&
                         tooltip != (traitName + "_CardTooltipText"))
                     {
-                        tooltip = Screens.BattleAccessibility.StripRichTextTags(tooltip).Trim();
+                        tooltip = TextUtilities.StripRichTextTags(tooltip).Trim();
                         value = $"{name}: {tooltip}";
                     }
                     else

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using MonsterTrainAccessibility.Utilities;
 
 namespace MonsterTrainAccessibility.Patches
 {
@@ -214,7 +215,7 @@ namespace MonsterTrainAccessibility.Patches
 
                 if (!string.IsNullOrEmpty(localizedName) && localizedName != nameKey)
                 {
-                    localizedName = Screens.BattleAccessibility.StripRichTextTags(localizedName).Trim();
+                    localizedName = TextUtilities.StripRichTextTags(localizedName).Trim();
                     if (!string.IsNullOrEmpty(localizedName))
                         return localizedName;
                 }

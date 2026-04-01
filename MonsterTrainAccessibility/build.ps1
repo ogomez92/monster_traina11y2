@@ -38,7 +38,7 @@ Write-Host "========================================"
 Write-Host ""
 
 # Game path
-$GamePath = "C:\Program Files (x86)\Steam\steamapps\common\Monster Train"
+$GamePath = "C:\Program Files (x86)\Steam\steamapps\common\Monster Train 2"
 
 # Remove trailing backslash
 $GamePath = $GamePath.TrimEnd('\')
@@ -47,8 +47,8 @@ Write-Host ""
 Write-Host "Using path: $GamePath"
 
 # Check if game exists
-if (-not (Test-Path "$GamePath\MonsterTrain.exe")) {
-    Write-Warning "MonsterTrain.exe not found at $GamePath"
+if (-not (Test-Path "$GamePath\MonsterTrain2.exe")) {
+    Write-Warning "MonsterTrain2.exe not found at $GamePath"
     Write-Host "The build may fail if Unity DLLs cannot be found."
     Write-Host ""
     $continue = Read-Host "Continue anyway? (Y/N)"

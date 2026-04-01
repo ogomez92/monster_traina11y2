@@ -30,7 +30,15 @@ namespace MonsterTrainAccessibility.Help
         Minimap,
         Credits,
         KeyMapping,
-        Loading
+        Loading,
+        Soulforge,
+        SoulDraft,
+        MutatorDraft,
+        RegionSelection,
+        SoulSaviorMap,
+        SoulProgression,
+        ChallengeProgress,
+        CharacterDialogue
     }
 
     /// <summary>
