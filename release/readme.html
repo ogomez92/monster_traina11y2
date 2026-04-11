@@ -1,0 +1,450 @@
+<h1 id="monster-train-accessibility-mod">Monster Train Accessibility
+Mod</h1>
+<p>A comprehensive accessibility mod for Monster Train that enables
+totally blind players to fully enjoy the game through screen reader
+integration and complete keyboard navigation.</p>
+<h2 id="features">Features</h2>
+<ul class="incremental">
+<li><strong>Full Screen Reader Support</strong>: Works with NVDA, JAWS,
+Window-Eyes, and Windows Narrator (SAPI)</li>
+<li><strong>Complete Keyboard Navigation</strong>: Navigate all game
+elements without a mouse</li>
+<li><strong>Battle Accessibility</strong>: Read cards in hand, floor
+status, enemy info and intents</li>
+<li><strong>Menu Navigation</strong>: Full access to main menu,
+settings, clan selection</li>
+<li><strong>Card Draft Support</strong>: Browse and select cards with
+full descriptions</li>
+<li><strong>Map Navigation</strong>: Choose your path through events,
+shops, and battles</li>
+<li><strong>Configurable Verbosity</strong>: Choose how much detail you
+want announced</li>
+<li><strong>Braille Display Support</strong>: Text sent to braille
+display if available</li>
+</ul>
+<h2 id="requirements">Requirements</h2>
+<ul class="incremental">
+<li>Monster Train (Steam version)</li>
+<li>BepInEx 5.4.x mod loader</li>
+<li>A screen reader (NVDA recommended) or Windows Narrator</li>
+<li>Windows operating system</li>
+</ul>
+<h2 id="installation">Installation</h2>
+<h3 id="step-1-subscribe-to-the-monster-train-mod-loader">Step 1:
+Subscribe to the Monster Train Mod Loader</h3>
+<ol class="incremental" type="1">
+<li>Open Steam and go to the <a
+href="https://steamcommunity.com/sharedfiles/filedetails/?id=2187468759">Monster
+Train Mod Loader</a> on Steam Workshop</li>
+<li>Click <strong>Subscribe</strong> to download the mod loader</li>
+<li>For detailed modding instructions, see the <a
+href="https://steamcommunity.com/sharedfiles/filedetails/?id=2257843164">Official
+Monster Train Modding Guide</a></li>
+</ol>
+<h3 id="step-2-enable-the-mod-loader-in-game">Step 2: Enable the Mod
+Loader In-Game</h3>
+<p>After subscribing, you must enable the mod loader inside the
+game.</p>
+<h4 id="instructions-for-screen-reader-users">Instructions for Screen
+Reader Users</h4>
+<ol class="incremental" type="1">
+<li>Launch Monster Train</li>
+<li>Press <strong>Enter</strong> to skip the intro cinematic</li>
+<li>You are now at the main menu (the menu does NOT wrap around)</li>
+<li>Press <strong>Down Arrow</strong> approximately <strong>7
+times</strong> to reach the bottom area</li>
+<li>Press <strong>Right Arrow</strong> approximately <strong>4
+times</strong> (this reaches the lower-right corner where “Mod Settings”
+is)</li>
+<li>Press <strong>Enter</strong> to open Mod Settings</li>
+<li>Press <strong>Down Arrow</strong> twice to reach the “Enable Mod
+Loader” checkbox</li>
+<li>Press <strong>Enter</strong> to toggle it on (you can use AI with a
+screenshot to verify it’s selected)</li>
+<li>Press escape - a dialog will ask if you want to apply and quit</li>
+<li>The leftmost option is selected by default (Apply &amp; Quit) -
+press <strong>Enter</strong> to confirm</li>
+<li>The game will exit automatically</li>
+</ol>
+<h3 id="install-the-mod">install the mod</h3>
+<p>Once you have enabled the mod loader, do the following:</p>
+<ol class="incremental" type="1">
+<li><p>Download te latest release of this mod</p></li>
+<li><p>Extract <strong>all contents</strong> directly to your Monster
+Train game folder:</p>
+<ul class="incremental">
+<li>Default location:
+<code>C:\Program Files (x86)\Steam\steamapps\common\Monster Train</code></li>
+</ul></li>
+<li><p>The folder structure should look like:</p>
+<pre><code>Monster Train/
+├── BepInEx/
+│   ├── core/
+│   ├── plugins/    (create if not exists)
+│   └── config/     (created automatically)
+├── MonsterTrain.exe
+├── winhttp.dll     (BepInEx loader - must be here)
+└── doorstop_config.ini
+└── tolk.dll, NVDAControllerClient64.dll, etc</code></pre></li>
+<li><p>Launch Monster Train once to let BepInEx initialize</p></li>
+</ol>
+<h3 id="step-3-launch-the-game">Step 3: Launch the Game</h3>
+<ol class="incremental" type="1">
+<li>Start your screen reader (NVDA, JAWS, or enable Windows
+Narrator)</li>
+<li>Launch Monster Train</li>
+<li>You should hear “Monster Train Accessibility loaded” when the game
+starts</li>
+</ol>
+<h2 id="keyboard-controls">Keyboard Controls</h2>
+<h3 id="navigation">Navigation</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Arrow Keys</td>
+<td>Navigate between items</td>
+</tr>
+<tr>
+<td>Enter</td>
+<td>Select / Activate current item</td>
+</tr>
+<tr>
+<td>Space</td>
+<td>Alternate select key</td>
+</tr>
+<tr>
+<td>Escape</td>
+<td>Go back / Cancel</td>
+</tr>
+</tbody>
+</table>
+<h3 id="information-hotkeys">Information Hotkeys</h3>
+<table>
+<colgroup>
+<col style="width: 38%" />
+<col style="width: 61%" />
+</colgroup>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F1</td>
+<td>Context-sensitive help (shows available keys for current
+screen)</td>
+</tr>
+<tr>
+<td>C</td>
+<td>Re-read current focused item</td>
+</tr>
+<tr>
+<td>T</td>
+<td>Read all text on screen (patch notes, descriptions, etc.)</td>
+</tr>
+<tr>
+<td>V</td>
+<td>Cycle verbosity level (Minimal/Normal/Verbose)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="automatic-text-reading">Automatic Text Reading</h3>
+<p>The mod automatically reads text when: - <strong>Scroll
+views</strong>: When you focus on a scrollable area (like patch notes),
+the content is read automatically - <strong>Dialogs/popups</strong>: New
+dialogs, tooltips, and text panels are announced when they appear -
+<strong>Content changes</strong>: If text content updates while you’re
+focused on it, the new content is announced</p>
+<h3 id="battle-hotkeys">Battle Hotkeys</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H</td>
+<td>Read all cards in hand</td>
+</tr>
+<tr>
+<td>L</td>
+<td>Read all floor information (L for Levels)</td>
+</tr>
+<tr>
+<td>N</td>
+<td>Read enemy information and intents (N for eNemies)</td>
+</tr>
+<tr>
+<td>R</td>
+<td>Read resources (ember, pyre health)</td>
+</tr>
+<tr>
+<td>1-9</td>
+<td>Select card by position in hand (1 = first card, etc.)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note</strong>: F and E are avoided because they conflict with
+the game’s native shortcuts (F = Toggle Unit Details, E = End Turn).</p>
+<h3
+id="floor-targeting-when-playing-a-card-that-requires-floor-selection">Floor
+Targeting (when playing a card that requires floor selection)</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Select Floor 1 (bottom floor)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Select Floor 2 (middle floor)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Select Floor 3 (top floor)</td>
+</tr>
+<tr>
+<td>Up/Down</td>
+<td>Cycle between floors</td>
+</tr>
+<tr>
+<td>Enter</td>
+<td>Confirm and play card on selected floor</td>
+</tr>
+<tr>
+<td>Escape</td>
+<td>Cancel card play</td>
+</tr>
+</tbody>
+</table>
+<h2 id="monster-train-native-keyboard-shortcuts">Monster Train Native
+Keyboard Shortcuts</h2>
+<p>These are the game’s built-in keyboard shortcuts that work with or
+without the accessibility mod.</p>
+<h3 id="navigation-floor-management">Navigation &amp; Floor
+Management</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Keyboard Shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Move Floor Up</td>
+<td><code>Page Up</code> / <code>W</code> / <code>Up Arrow</code></td>
+</tr>
+<tr>
+<td>Move Floor Down</td>
+<td><code>Page Down</code> / <code>S</code> /
+<code>Down Arrow</code></td>
+</tr>
+<tr>
+<td>View Top Floor</td>
+<td><code>Home</code></td>
+</tr>
+<tr>
+<td>View Bottom Floor</td>
+<td><code>End</code></td>
+</tr>
+<tr>
+<td>Zoom In / Out</td>
+<td><code>Scroll Wheel</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="combat-card-actions">Combat &amp; Card Actions</h3>
+<table>
+<colgroup>
+<col style="width: 29%" />
+<col style="width: 70%" />
+</colgroup>
+<thead>
+<tr>
+<th>Action</th>
+<th>Keyboard Shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>End Turn</td>
+<td><code>E</code> / <code>Enter</code> (Hold for safety if enabled in
+options)</td>
+</tr>
+<tr>
+<td>Undo Action</td>
+<td><code>Z</code> / <code>Ctrl + Z</code> (Only works for certain
+non-random actions)</td>
+</tr>
+<tr>
+<td>Speed Up Gameplay</td>
+<td><code>Spacebar</code> (Toggles between speeds during combat)</td>
+</tr>
+<tr>
+<td>Toggle Unit Details</td>
+<td><code>F</code> (on a unit)</td>
+</tr>
+<tr>
+<td>Show Draw Pile</td>
+<td><code>D</code></td>
+</tr>
+<tr>
+<td>Show Discard Pile</td>
+<td><code>G</code></td>
+</tr>
+<tr>
+<td>Show Exhaust/Consumed Pile</td>
+<td><code>X</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="menu-system">Menu &amp; System</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Keyboard Shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open Menu / Settings</td>
+<td><code>Esc</code></td>
+</tr>
+<tr>
+<td>Open Map</td>
+<td><code>M</code></td>
+</tr>
+<tr>
+<td>Full Screen Toggle</td>
+<td><code>Alt + Enter</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="note-for-controller-users">Note for Controller Users</h3>
+<p>If you are playing on a PC with a controller, the game has a
+“Keyboard Mode” that activates when you press a key. If your cursor
+behaves unexpectedly, check your input settings (Hybrid/Mouse/Controller
+modes in the options menu).</p>
+<h2 id="configuration">Configuration</h2>
+<p>After first launch, a configuration file is created at:
+<code>BepInEx/config/com.accessibility.monstertrain.cfg</code></p>
+<p>You can edit this file to customize: - Key bindings for all controls
+- Verbosity level (Minimal, Normal, Verbose) - Which events to announce
+(card draws, damage, status effects) - SAPI fallback settings - Braille
+display options</p>
+<h3 id="verbosity-levels">Verbosity Levels</h3>
+<ul class="incremental">
+<li><strong>Minimal</strong>: Card names and numbers only</li>
+<li><strong>Normal</strong>: Standard descriptions with key stats</li>
+<li><strong>Verbose</strong>: Full details including flavor text</li>
+</ul>
+<h2 id="battle-navigation">Battle Navigation</h2>
+<p>The battle screen uses the game’s native navigation. Use hotkeys for
+information:</p>
+<ul class="incremental">
+<li>Press <strong>H</strong> to hear all cards in your hand</li>
+<li>Press <strong>L</strong> to hear floor status and units (L for
+Levels)</li>
+<li>Press <strong>N</strong> to hear enemy information (N for
+eNemies)</li>
+<li>Press <strong>R</strong> to hear ember and pyre health</li>
+<li>Press <strong>F1</strong> for context-sensitive help listing all
+available keys</li>
+</ul>
+<h3 id="playing-cards">Playing Cards</h3>
+<ul class="incremental">
+<li>Press <strong>1-9</strong> to quickly select a card by its position
+in hand</li>
+<li>Alternatively, navigate to cards using the game’s controls</li>
+<li>Press <strong>Enter</strong> to play the selected card</li>
+<li>When a card requires floor placement (like monster cards), floor
+targeting mode activates:
+<ul class="incremental">
+<li>Press <strong>1</strong>, <strong>2</strong>, or <strong>3</strong>
+to select a floor directly</li>
+<li>Or use <strong>Up/Down arrows</strong> to cycle through floors</li>
+<li>The current floor’s units will be announced as you select</li>
+<li>Press <strong>Enter</strong> to confirm and play the card</li>
+<li>Press <strong>Escape</strong> to cancel</li>
+</ul></li>
+</ul>
+<h2 id="tips-for-blind-players">Tips for Blind Players</h2>
+<ol class="incremental" type="1">
+<li><strong>Press F1 for Help</strong>: On any screen, press F1 to hear
+all available keyboard shortcuts for that context</li>
+<li><strong>Start Simple</strong>: Begin with the tutorial to learn the
+game flow</li>
+<li><strong>Read Text</strong>: Press T to read patch notes, event
+descriptions, or any screen text</li>
+<li><strong>Use Battle Hotkeys</strong>: H, L, N, R provide quick status
+updates during battle</li>
+<li><strong>Quick Card Selection</strong>: Press 1-9 to instantly select
+cards by position instead of navigating</li>
+<li><strong>Check Ember</strong>: Press R regularly to know your
+available resources</li>
+<li><strong>Enemy Intents</strong>: Press N to hear what enemies plan to
+do next turn</li>
+<li><strong>Re-read Items</strong>: Press C to re-read the currently
+focused menu item</li>
+</ol>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="no-speech-output">No Speech Output</h3>
+<ol class="incremental" type="1">
+<li>Verify your screen reader is running</li>
+<li>Check that <code>Tolk.dll</code> is in the plugins folder</li>
+<li>Try enabling SAPI fallback in the config file</li>
+</ol>
+<h3 id="mod-not-loading">Mod Not Loading</h3>
+<ol class="incremental" type="1">
+<li>Verify BepInEx is installed correctly</li>
+<li>Check <code>BepInEx/LogOutput.log</code> for error messages</li>
+<li>Ensure .NET Framework is installed</li>
+</ol>
+<h3 id="keys-not-responding">Keys Not Responding</h3>
+<ol class="incremental" type="1">
+<li>Make sure the game window has focus</li>
+<li>Check for key conflicts in the config file</li>
+<li>Try the alternate keys (Space instead of Enter)</li>
+</ol>
+<h2 id="known-limitations">Known Limitations</h2>
+<ul class="incremental">
+<li>Some UI animations may cause brief delays in announcements</li>
+<li>Complex card effects may require verbose mode for full details</li>
+<li>Multiplayer modes have limited accessibility support</li>
+</ul>
+<h2 id="support">Support</h2>
+<p>Report issues or request features at: <a
+href="https://github.com/yourusername/MonsterTrainAccessibility/issues">GitHub
+Issues</a></p>
+<h2 id="credits">Credits</h2>
+<ul class="incremental">
+<li><strong>Tolk Library</strong>: Davy Kager (screen reader
+integration)</li>
+<li><strong>BepInEx Team</strong>: Mod loading framework</li>
+<li><strong>Trainworks</strong>: Community modding toolkit
+reference</li>
+<li><strong>Shiny Shoe</strong>: Monster Train developers</li>
+</ul>
+<h2 id="license">License</h2>
+<p>This mod is provided free of charge for accessibility purposes. Tolk
+library is licensed under LGPLv3.</p>
+<hr />
+<p><em>Making games accessible, one train ride at a time.</em></p>

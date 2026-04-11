@@ -1,0 +1,469 @@
+[Message:   BepInEx] BepInEx 5.4.23.4 - MonsterTrain (17/01/2026 13:00:33)
+[Info   :   BepInEx] Running under Unity v2019.4.4.2039212
+[Info   :   BepInEx] CLR runtime version: 4.0.30319.17020
+[Info   :   BepInEx] Supports SRE: False
+[Info   :   BepInEx] System platform: Bits64, Windows
+[Message:   BepInEx] Preloader started
+[Info   :   BepInEx] Loaded 1 patcher method from [BepInEx.Preloader 5.4.23.4]
+[Info   :   BepInEx] 1 patcher plugin loaded
+[Info   :   BepInEx] Patching [UnityEngine.CoreModule] with [BepInEx.Chainloader]
+[Message:   BepInEx] Preloader finished
+[Message:   BepInEx] Chainloader ready
+[Message:   BepInEx] Chainloader started
+[Info   :   BepInEx] 1 plugin to load
+[Info   :   BepInEx] Loading [Monster Train Accessibility 1.0.0]
+[Info   :Monster Train Accessibility] Monster Train Accessibility v1.0.0 is loading...
+[Info   :Monster Train Accessibility] Screen reader detected: NVDA
+[Info   :Monster Train Accessibility] Speech available: True
+[Info   :Monster Train Accessibility] Braille available: True
+[Info   :Monster Train Accessibility] Registered help context: global (priority 0)
+[Info   :Monster Train Accessibility] Registered help context: main_menu (priority 40)
+[Info   :Monster Train Accessibility] Registered help context: clan_selection (priority 50)
+[Info   :Monster Train Accessibility] Registered help context: map (priority 60)
+[Info   :Monster Train Accessibility] Registered help context: shop (priority 70)
+[Info   :Monster Train Accessibility] Registered help context: event (priority 70)
+[Info   :Monster Train Accessibility] Registered help context: card_draft (priority 80)
+[Info   :Monster Train Accessibility] Registered help context: battle_intro (priority 85)
+[Info   :Monster Train Accessibility] Registered help context: battle (priority 90)
+[Info   :Monster Train Accessibility] Registered help context: tutorial (priority 95)
+[Info   :Monster Train Accessibility] Registered help context: battle_targeting (priority 100)
+[Info   :Monster Train Accessibility] Registered help context: unit_targeting (priority 101)
+[Info   :Monster Train Accessibility] Registered help contexts
+[Info   :Monster Train Accessibility] Patched MainMenuScreen.Initialize
+[Info   :Monster Train Accessibility] Patched BattleIntroScreen.Initialize
+[Info   :Monster Train Accessibility] Patched CombatManager.StartCombat
+[Info   :Monster Train Accessibility] Patched CardDraftScreen.Setup
+[Info   :Monster Train Accessibility] Patched ClassSelectionScreen.Initialize
+[Info   :Monster Train Accessibility] Patched MapScreen
+[Info   :Monster Train Accessibility] Patched MerchantScreen.Initialize
+[Warning:  HarmonyX] AccessTools.TypeByName: Could not find type named UpgradeSelectionScreen
+[Warning:  HarmonyX] AccessTools.TypeByName: Could not find type named EnhancerSelectionScreen
+[Warning:  HarmonyX] AccessTools.TypeByName: Could not find type named CardUpgradeSelectionScreen
+[Warning:  HarmonyX] AccessTools.TypeByName: Could not find type named UpgradeScreen
+[Warning:  HarmonyX] AccessTools.TypeByName: Could not find type named EnhancerScreen
+[Info   :Monster Train Accessibility] EnhancerSelectionScreen not found - will use alternative detection
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type ScreenManager and name ChangeScreen and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type ScreenManager and name LoadScreen and parameters 
+[Info   :Monster Train Accessibility] Patched ScreenManager.ShowScreen
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name StartPlayerTurn and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name EndPlayerTurn and parameters 
+[Info   :Monster Train Accessibility] Patched damage method: ApplyDamageToTarget
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CharacterState and name Die and parameters 
+[Info   :Monster Train Accessibility] Patched CharacterState.AddStatusEffect (params: 2)
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name EndCombat and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name OnCombatComplete and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type MonsterManager and name AddCharacter and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type HeroManager and name AddCharacter and parameters 
+[Info   :Monster Train Accessibility] Patched CharacterState.Setup
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name AscendEnemies and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name MoveEnemies and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CombatManager and name ProcessAscend and parameters 
+[Info   :Monster Train Accessibility] Ascend method not found - will use alternative detection
+[Info   :Monster Train Accessibility] Patched pyre damage: SetTowerHP
+[Info   :Monster Train Accessibility] Patched CardManager.DrawCards
+[Info   :Monster Train Accessibility] Patched CardManager.PlayCard
+[Info   :Monster Train Accessibility] Patched CardManager.DiscardCard
+[Info   :Monster Train Accessibility] Patched deck shuffle
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CardManager and name OnHandChanged and parameters 
+[Warning:  HarmonyX] AccessTools.Method: Could not find method for type CardManager and name UpdateHand and parameters 
+[Info   :Monster Train Accessibility] Monster Train Accessibility loaded successfully!
+[Message:   BepInEx] Chainloader startup complete
+[Info   :Monster Train Accessibility] Screen transition detected
+[Info   :Monster Train Accessibility] Screen transition detected
+[Info   :Monster Train Accessibility] Screen changed: Unknown -> MainMenu
+[Info   :Monster Train Accessibility] Main menu entered
+[Info   :Monster Train Accessibility] Components on 'Singleplayer Option':
+  [0] Singleplayer Option: RectTransform, MainMenuButton, LayoutElement, CanvasRenderer, Graphic2DInvisRaycastTarget, GameUISelectableButton, Animator, 
+  [1] Logged In Options: RectTransform, VerticalLayoutGroup, 
+  [2] Options: RectTransform, VerticalLayoutGroup, 
+  [3] MainMenuScreen: RectTransform, MainMenuScreen, Animator, CanvasGroup, 
+  [4] Canvas: RectTransform, Canvas, GraphicRaycaster, CanvasScaler, 
+
+[Info   :Monster Train Accessibility] Screen transition detected
+[Info   :Monster Train Accessibility] Screen changed: MainMenu -> BattleIntro
+[Info   :Monster Train Accessibility] Battle intro screen entered
+[Info   :Monster Train Accessibility] Components on 'TooltipTarget1':
+  [0] TooltipTarget1: RectTransform, CanvasRenderer, Graphic2DInvisRaycastTarget, TooltipProviderComponent, FollowRectTransform, GameUISelectableWithNavigation, 
+  [1] Enemy_Tooltips: RectTransform, NavigationGroup, 
+  [2] Enemy scene: RectTransform, 
+  [3] Main content: RectTransform, 
+  [4] BattleIntro screen: RectTransform, BattleIntroScreen, Animator, NavigationGroup, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] === Fields on BattleIntroScreen ===
+  NavigationGroup rootNavGroup = BattleIntro screen (NavigationGroup)
+  TMP_Text battleNameLabel = Enemy name label (TMPro.TextMeshProUGUI)
+  MultilineTextFitter battleDescriptionLabel = Enemy description label (MultilineTextFitter)
+  HellforgedThreatLevelUI hellforgedThreatLevelUI = Threat Level (HellforgedThreatLevelUI)
+  CanvasGroup trialCanvasGroup = Content (UnityEngine.CanvasGroup)
+  TrialInfoUI trialInfoUI = Trial reward container (TrialInfoUI)
+  Transform enemyRelicContainer = Enemy relics container root (UnityEngine.RectTransform)
+  GameUISelectableToggle trialToggleButton = Toggle button input area (ShinyShoe.GameUISelectableToggle)
+  List`1 trialOnlyObjects = System.Collections.Generic.List`1[UnityEngine.GameObject]
+  LayoutElement relicInfoLayoutElement = Relic info (UnityEngine.UI.LayoutElement)
+  Vector2 relicInfoWidthWithAndWithoutTrial = (350.0, 400.0)
+  GameUISelectableButton fightButton = Fight button (ShinyShoe.GameUISelectableButton)
+  List`1 enemyDisplays = System.Collections.Generic.List`1[BattleIntroEnemy]
+  BattleIntroEnemy bigBossDisplay = Big boss (BattleIntroEnemy)
+  Animator animator = BattleIntro screen (UnityEngine.Animator)
+  SaveManager saveManager = SaveManager (SaveManager)
+  RelicManager relicManager = RelicManager (RelicManager)
+  StatusEffectManager statusEffectManager = StatusEffectManager (StatusEffectManager)
+  List`1 relicInfoUIs = System.Collections.Generic.List`1[RelicInfoUI]
+  TrialData trialData = null
+  Boolean trialEnabled = False
+  Boolean loadingDone = True
+  InputManager inputManager = InputManager (InputManager)
+  ScreenManager screenManager = ScreenManager (ScreenManager)
+  AssetLoadingManager assetLoadingManager = AssetLoadingManager (AssetLoadingManager)
+  SoundManager soundManager = SoundManager (SoundManager)
+  Boolean initialized = True
+  ScreenTransition screenTransition = null
+  List`1 navigationLayerStack = System.Collections.Generic.List`1[INavigationLayer]
+
+[Info   :Monster Train Accessibility] Found SaveManager of type SaveManager
+[Info   :Monster Train Accessibility] SaveManager scenario-related methods: GetHasSeenFtueScenario, SetFtueScenarioSeenIfAdvanced, IsBattleMode, BattleModeRunHasStarted, HasCurrentScenario, GetScenarioData, GetCurrentScenarioData, IsInBattle, IsInBattleIntro, BattleComplete, BattleLost, GetNumBattlesWon, GetBattleRecords, GetBattleRecord, SetActiveTimingBattleModeAutoplay, GetRelicBattleCount, GetPostBattleRewardsAtDistance, GeneratePostBattleRewards, ToggleBattlePreviewEnabled, GetBattlePreviewEnabled, SetTemporaryBattlePreviewEnabled, SetWavesCleared, EnableTestScenario, get_InTestScenario, get_IsInfiniteScenario, Cheat_DirtyBattleState, AnalyticsTrackBattleStart, AnalyticsSetBattleStartTime, AnalyticsTrackBattleEnd, SetBattleModeRank
+[Info   :Monster Train Accessibility] Got ScenarioData from GetCurrentScenarioData(): ScenarioData
+[Info   :Monster Train Accessibility] ScenarioData type: ScenarioData
+[Info   :Monster Train Accessibility] ScenarioData fields: spawnPattern, bossVariant, startingEnergy, difficulty, bossIcon, bossPortrait, mapNodePrefab, enemyBlessingData, battleTrackNameData, minTreasureUnits, maxTreasureUnits, treasureCharacterPool, minTraitorUnits, maxTraitorUnits, traitorUnitsPool, trials, ftueCardDrawData, battleNameKey, battleDescriptionKey, displayedEnemies, displayedEnemyOffsets, bossSpawnSFXCue, backgroundData, id
+[Info   :Monster Train Accessibility] Got battle name via GetBattleName(): Barbed Disciples
+[Info   :Monster Train Accessibility] Got battle description: These spiked foes will make direct attacks more painful. Using spells from afar will let you fight without sacrificing your units.
+[Info   :Monster Train Accessibility] Boss display exists but is not active - not a boss battle
+[Info   :Monster Train Accessibility] Scenario difficulty: 0
+[Info   :Monster Train Accessibility] Ring boss pool: Level2Bosses (BossVariantSpawnData) (not current battle type)
+[Info   :Monster Train Accessibility] Components on 'TooltipTarget1':
+  [0] TooltipTarget1: RectTransform, CanvasRenderer, Graphic2DInvisRaycastTarget, TooltipProviderComponent, FollowRectTransform, GameUISelectableWithNavigation, 
+  [1] Enemy_Tooltips: RectTransform, NavigationGroup, 
+  [2] Enemy scene: RectTransform, 
+  [3] Main content: RectTransform, 
+  [4] BattleIntro screen: RectTransform, BattleIntroScreen, Animator, NavigationGroup, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'TooltipTarget3':
+  [0] TooltipTarget3: RectTransform, CanvasRenderer, Graphic2DInvisRaycastTarget, TooltipProviderComponent, FollowRectTransform, GameUISelectableWithNavigation, 
+  [1] Enemy_Tooltips: RectTransform, NavigationGroup, 
+  [2] Enemy scene: RectTransform, 
+  [3] Main content: RectTransform, 
+  [4] BattleIntro screen: RectTransform, BattleIntroScreen, Animator, NavigationGroup, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'TooltipTarget2':
+  [0] TooltipTarget2: RectTransform, CanvasRenderer, Graphic2DInvisRaycastTarget, TooltipProviderComponent, FollowRectTransform, GameUISelectableWithNavigation, 
+  [1] Enemy_Tooltips: RectTransform, NavigationGroup, 
+  [2] Enemy scene: RectTransform, 
+  [3] Main content: RectTransform, 
+  [4] BattleIntro screen: RectTransform, BattleIntroScreen, Animator, NavigationGroup, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'TooltipTarget3':
+  [0] TooltipTarget3: RectTransform, CanvasRenderer, Graphic2DInvisRaycastTarget, TooltipProviderComponent, FollowRectTransform, GameUISelectableWithNavigation, 
+  [1] Enemy_Tooltips: RectTransform, NavigationGroup, 
+  [2] Enemy scene: RectTransform, 
+  [3] Main content: RectTransform, 
+  [4] BattleIntro screen: RectTransform, BattleIntroScreen, Animator, NavigationGroup, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'TooltipTarget1':
+  [0] TooltipTarget1: RectTransform, CanvasRenderer, Graphic2DInvisRaycastTarget, TooltipProviderComponent, FollowRectTransform, GameUISelectableWithNavigation, 
+  [1] Enemy_Tooltips: RectTransform, NavigationGroup, 
+  [2] Enemy scene: RectTransform, 
+  [3] Main content: RectTransform, 
+  [4] BattleIntro screen: RectTransform, BattleIntroScreen, Animator, NavigationGroup, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] === Fields on BattleIntroScreen ===
+  NavigationGroup rootNavGroup = BattleIntro screen (NavigationGroup)
+  TMP_Text battleNameLabel = Enemy name label (TMPro.TextMeshProUGUI)
+  MultilineTextFitter battleDescriptionLabel = Enemy description label (MultilineTextFitter)
+  HellforgedThreatLevelUI hellforgedThreatLevelUI = Threat Level (HellforgedThreatLevelUI)
+  CanvasGroup trialCanvasGroup = Content (UnityEngine.CanvasGroup)
+  TrialInfoUI trialInfoUI = Trial reward container (TrialInfoUI)
+  Transform enemyRelicContainer = Enemy relics container root (UnityEngine.RectTransform)
+  GameUISelectableToggle trialToggleButton = Toggle button input area (ShinyShoe.GameUISelectableToggle)
+  List`1 trialOnlyObjects = System.Collections.Generic.List`1[UnityEngine.GameObject]
+  LayoutElement relicInfoLayoutElement = Relic info (UnityEngine.UI.LayoutElement)
+  Vector2 relicInfoWidthWithAndWithoutTrial = (350.0, 400.0)
+  GameUISelectableButton fightButton = Fight button (ShinyShoe.GameUISelectableButton)
+  List`1 enemyDisplays = System.Collections.Generic.List`1[BattleIntroEnemy]
+  BattleIntroEnemy bigBossDisplay = Big boss (BattleIntroEnemy)
+  Animator animator = BattleIntro screen (UnityEngine.Animator)
+  SaveManager saveManager = SaveManager (SaveManager)
+  RelicManager relicManager = RelicManager (RelicManager)
+  StatusEffectManager statusEffectManager = StatusEffectManager (StatusEffectManager)
+  List`1 relicInfoUIs = System.Collections.Generic.List`1[RelicInfoUI]
+  TrialData trialData = null
+  Boolean trialEnabled = False
+  Boolean loadingDone = True
+  InputManager inputManager = InputManager (InputManager)
+  ScreenManager screenManager = ScreenManager (ScreenManager)
+  AssetLoadingManager assetLoadingManager = AssetLoadingManager (AssetLoadingManager)
+  SoundManager soundManager = SoundManager (SoundManager)
+  Boolean initialized = True
+  ScreenTransition screenTransition = null
+  List`1 navigationLayerStack = System.Collections.Generic.List`1[INavigationLayer]
+
+[Info   :Monster Train Accessibility] Found SaveManager of type SaveManager
+[Info   :Monster Train Accessibility] SaveManager scenario-related methods: GetHasSeenFtueScenario, SetFtueScenarioSeenIfAdvanced, IsBattleMode, BattleModeRunHasStarted, HasCurrentScenario, GetScenarioData, GetCurrentScenarioData, IsInBattle, IsInBattleIntro, BattleComplete, BattleLost, GetNumBattlesWon, GetBattleRecords, GetBattleRecord, SetActiveTimingBattleModeAutoplay, GetRelicBattleCount, GetPostBattleRewardsAtDistance, GeneratePostBattleRewards, ToggleBattlePreviewEnabled, GetBattlePreviewEnabled, SetTemporaryBattlePreviewEnabled, SetWavesCleared, EnableTestScenario, get_InTestScenario, get_IsInfiniteScenario, Cheat_DirtyBattleState, AnalyticsTrackBattleStart, AnalyticsSetBattleStartTime, AnalyticsTrackBattleEnd, SetBattleModeRank
+[Info   :Monster Train Accessibility] Got ScenarioData from GetCurrentScenarioData(): ScenarioData
+[Info   :Monster Train Accessibility] ScenarioData type: ScenarioData
+[Info   :Monster Train Accessibility] ScenarioData fields: spawnPattern, bossVariant, startingEnergy, difficulty, bossIcon, bossPortrait, mapNodePrefab, enemyBlessingData, battleTrackNameData, minTreasureUnits, maxTreasureUnits, treasureCharacterPool, minTraitorUnits, maxTraitorUnits, traitorUnitsPool, trials, ftueCardDrawData, battleNameKey, battleDescriptionKey, displayedEnemies, displayedEnemyOffsets, bossSpawnSFXCue, backgroundData, id
+[Info   :Monster Train Accessibility] Got battle name via GetBattleName(): Barbed Disciples
+[Info   :Monster Train Accessibility] Got battle description: These spiked foes will make direct attacks more painful. Using spells from afar will let you fight without sacrificing your units.
+[Info   :Monster Train Accessibility] Boss display exists but is not active - not a boss battle
+[Info   :Monster Train Accessibility] Scenario difficulty: 0
+[Info   :Monster Train Accessibility] Ring boss pool: Level2Bosses (BossVariantSpawnData) (not current battle type)
+[Info   :Monster Train Accessibility] Components on 'Settings button':
+  [0] Settings button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, 
+  [1] Button Layout: RectTransform, VerticalLayoutGroup, 
+  [2] Content: RectTransform, VerticalLayoutGroup, 
+  [3] Pause Dialog: RectTransform, CanvasGroup, PopupNavigationLayer, VerticalLayoutGroup, ContentSizeFitter, PauseDialog, 
+  [4] Settings Screen: RectTransform, SettingsScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Abandon Run button':
+  [0] Abandon Run button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, LayoutElement, 
+  [1] Run options: RectTransform, HorizontalLayoutGroup, 
+  [2] Run info root: RectTransform, VerticalLayoutGroup, 
+  [3] Content: RectTransform, VerticalLayoutGroup, 
+  [4] Pause Dialog: RectTransform, CanvasGroup, PopupNavigationLayer, VerticalLayoutGroup, ContentSizeFitter, PauseDialog, 
+
+[Info   :Monster Train Accessibility] Components on 'Class Icons UI':
+  [0] Class Icons UI: RectTransform, ChosenClassesUI, TooltipProviderComponent, CanvasRenderer, Graphic2DInvisRaycastTarget, GameUISelectableButton, 
+  [1] Run stats: RectTransform, HorizontalLayoutGroup, 
+  [2] Content: RectTransform, HorizontalLayoutGroup, 
+  [3] Row 1: RectTransform, 
+  [4] Run info: RectTransform, RunInfo, 
+
+[Info   :Monster Train Accessibility] Components on 'Settings button':
+  [0] Settings button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, 
+  [1] Button Layout: RectTransform, VerticalLayoutGroup, 
+  [2] Content: RectTransform, VerticalLayoutGroup, 
+  [3] Pause Dialog: RectTransform, CanvasGroup, PopupNavigationLayer, VerticalLayoutGroup, ContentSizeFitter, PauseDialog, 
+  [4] Settings Screen: RectTransform, SettingsScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Slider':
+  [0] Slider: RectTransform, Slider, SelectableSliderHelper, ToggleObjectOnSelect, 
+  [1] Input area: RectTransform, 
+  [2] Global volume control: RectTransform, VolumeControl, SettingsEntry, 
+  [3] Audio Section: RectTransform, VerticalLayoutGroup, PopupNavigationLayer, NavigationGroup, 
+  [4] Content: RectTransform, VerticalLayoutGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Settings button':
+  [0] Settings button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, 
+  [1] Button Layout: RectTransform, VerticalLayoutGroup, 
+  [2] Content: RectTransform, VerticalLayoutGroup, 
+  [3] Pause Dialog: RectTransform, CanvasGroup, PopupNavigationLayer, VerticalLayoutGroup, ContentSizeFitter, PauseDialog, 
+  [4] Settings Screen: RectTransform, SettingsScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Abandon Run button':
+  [0] Abandon Run button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, LayoutElement, 
+  [1] Run options: RectTransform, HorizontalLayoutGroup, 
+  [2] Run info root: RectTransform, VerticalLayoutGroup, 
+  [3] Content: RectTransform, VerticalLayoutGroup, 
+  [4] Pause Dialog: RectTransform, CanvasGroup, PopupNavigationLayer, VerticalLayoutGroup, ContentSizeFitter, PauseDialog, 
+
+[Info   :Monster Train Accessibility] === Dialog component fields/properties on Dialog ===
+  Field: style (Style) = Normal
+  Field: contentRoot (RectTransform) = Dialog (UnityEngine.RectTransform)
+  Field: overlay (Image) = Overlay (UnityEngine.UI.Image)
+  Field: contentLabel (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1 (GameUISelectableButton) = Yes Button (ShinyShoe.GameUISelectableButton)
+  Field: button1Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1Bg (Image) = Background (UnityEngine.UI.Image)
+  Field: button1Spinner (Spinner) = Waiting spinner (Spinner)
+  Field: button2 (GameUISelectableButton) = No Button (ShinyShoe.GameUISelectableButton)
+  Field: button2Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: waitingSpinner (Spinner) = Waiting spinner (Spinner)
+  Field: widthsByCharacterCount (List`1) = System.Collections.Generic.List`1[Dialog+WidthCutoff]
+  Field: data (Data) = Dialog+Data
+  Field: originalOverlayAlpha (Single) = 0,8
+  Field: <PreviouslySelectedUI>k__BackingField (IGameUIComponent) = 
+  Property: PreviouslySelectedUI (IGameUIComponent) = 
+  Property: useGUILayout (Boolean) = True
+  Property: enabled (Boolean) = True
+  Property: isActiveAndEnabled (Boolean) = True
+  Property: transform (Transform) = Dialog (UnityEngine.RectTransform)
+  Property: gameObject (GameObject) = Dialog (UnityEngine.GameObject)
+  Property: tag (String) = Untagged
+  Property: name (String) = Dialog
+  Property: hideFlags (HideFlags) = None
+
+[Info   :Monster Train Accessibility] Dialog overlay alpha: 0,8
+[Info   :Monster Train Accessibility] Dialog button detected (new): 'Return to the Main Menu? Your progress in this battle won't be saved.' - Button: 'No'
+[Info   :Monster Train Accessibility] === Dialog component fields/properties on Dialog ===
+  Field: style (Style) = Normal
+  Field: contentRoot (RectTransform) = Dialog (UnityEngine.RectTransform)
+  Field: overlay (Image) = Overlay (UnityEngine.UI.Image)
+  Field: contentLabel (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1 (GameUISelectableButton) = Yes Button (ShinyShoe.GameUISelectableButton)
+  Field: button1Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1Bg (Image) = Background (UnityEngine.UI.Image)
+  Field: button1Spinner (Spinner) = Waiting spinner (Spinner)
+  Field: button2 (GameUISelectableButton) = No Button (ShinyShoe.GameUISelectableButton)
+  Field: button2Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: waitingSpinner (Spinner) = Waiting spinner (Spinner)
+  Field: widthsByCharacterCount (List`1) = System.Collections.Generic.List`1[Dialog+WidthCutoff]
+  Field: data (Data) = Dialog+Data
+  Field: originalOverlayAlpha (Single) = 0,8
+  Field: <PreviouslySelectedUI>k__BackingField (IGameUIComponent) = 
+  Property: PreviouslySelectedUI (IGameUIComponent) = 
+  Property: useGUILayout (Boolean) = True
+  Property: enabled (Boolean) = True
+  Property: isActiveAndEnabled (Boolean) = True
+  Property: transform (Transform) = Dialog (UnityEngine.RectTransform)
+  Property: gameObject (GameObject) = Dialog (UnityEngine.GameObject)
+  Property: tag (String) = Untagged
+  Property: name (String) = Dialog
+  Property: hideFlags (HideFlags) = None
+
+[Info   :Monster Train Accessibility] Dialog overlay alpha: 0,8
+[Info   :Monster Train Accessibility] Dialog button (same dialog): 'A'
+[Info   :Monster Train Accessibility] === Dialog component fields/properties on Dialog ===
+  Field: style (Style) = Normal
+  Field: contentRoot (RectTransform) = Dialog (UnityEngine.RectTransform)
+  Field: overlay (Image) = Overlay (UnityEngine.UI.Image)
+  Field: contentLabel (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1 (GameUISelectableButton) = Yes Button (ShinyShoe.GameUISelectableButton)
+  Field: button1Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1Bg (Image) = Background (UnityEngine.UI.Image)
+  Field: button1Spinner (Spinner) = Waiting spinner (Spinner)
+  Field: button2 (GameUISelectableButton) = No Button (ShinyShoe.GameUISelectableButton)
+  Field: button2Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: waitingSpinner (Spinner) = Waiting spinner (Spinner)
+  Field: widthsByCharacterCount (List`1) = System.Collections.Generic.List`1[Dialog+WidthCutoff]
+  Field: data (Data) = Dialog+Data
+  Field: originalOverlayAlpha (Single) = 0,8
+  Field: <PreviouslySelectedUI>k__BackingField (IGameUIComponent) = 
+  Property: PreviouslySelectedUI (IGameUIComponent) = 
+  Property: useGUILayout (Boolean) = True
+  Property: enabled (Boolean) = True
+  Property: isActiveAndEnabled (Boolean) = True
+  Property: transform (Transform) = Dialog (UnityEngine.RectTransform)
+  Property: gameObject (GameObject) = Dialog (UnityEngine.GameObject)
+  Property: tag (String) = Untagged
+  Property: name (String) = Dialog
+  Property: hideFlags (HideFlags) = None
+
+[Info   :Monster Train Accessibility] Dialog overlay alpha: 0,8
+[Info   :Monster Train Accessibility] Dialog button (same dialog): 'No'
+[Info   :Monster Train Accessibility] === Dialog component fields/properties on Dialog ===
+  Field: style (Style) = Normal
+  Field: contentRoot (RectTransform) = Dialog (UnityEngine.RectTransform)
+  Field: overlay (Image) = Overlay (UnityEngine.UI.Image)
+  Field: contentLabel (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1 (GameUISelectableButton) = Yes Button (ShinyShoe.GameUISelectableButton)
+  Field: button1Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: button1Bg (Image) = Background (UnityEngine.UI.Image)
+  Field: button1Spinner (Spinner) = Waiting spinner (Spinner)
+  Field: button2 (GameUISelectableButton) = No Button (ShinyShoe.GameUISelectableButton)
+  Field: button2Label (TMP_Text) = Label (TMPro.TextMeshProUGUI)
+  Field: waitingSpinner (Spinner) = Waiting spinner (Spinner)
+  Field: widthsByCharacterCount (List`1) = System.Collections.Generic.List`1[Dialog+WidthCutoff]
+  Field: data (Data) = Dialog+Data
+  Field: originalOverlayAlpha (Single) = 0,8
+  Field: <PreviouslySelectedUI>k__BackingField (IGameUIComponent) = 
+  Property: PreviouslySelectedUI (IGameUIComponent) = 
+  Property: useGUILayout (Boolean) = True
+  Property: enabled (Boolean) = True
+  Property: isActiveAndEnabled (Boolean) = True
+  Property: transform (Transform) = Dialog (UnityEngine.RectTransform)
+  Property: gameObject (GameObject) = Dialog (UnityEngine.GameObject)
+  Property: tag (String) = Untagged
+  Property: name (String) = Dialog
+  Property: hideFlags (HideFlags) = None
+
+[Info   :Monster Train Accessibility] Dialog overlay alpha: 0,8
+[Info   :Monster Train Accessibility] Dialog button (same dialog): 'A'
+[Info   :Monster Train Accessibility] Screen transition detected
+[Info   :Monster Train Accessibility] Components on 'Settings button':
+  [0] Settings button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, 
+  [1] Button Layout: RectTransform, VerticalLayoutGroup, 
+  [2] Content: RectTransform, VerticalLayoutGroup, 
+  [3] Pause Dialog: RectTransform, CanvasGroup, PopupNavigationLayer, VerticalLayoutGroup, ContentSizeFitter, PauseDialog, 
+  [4] Settings Screen: RectTransform, SettingsScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Restart button':
+  [0] Restart button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, LayoutElement, 
+  [1] Buttons row: RectTransform, HorizontalLayoutGroup, CanvasGroup, LayoutElement, 
+  [2] Content: RectTransform, VerticalLayoutGroup, 
+  [3] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+  [4] Canvas: RectTransform, Canvas, GraphicRaycaster, CanvasScaler, 
+
+[Info   :Monster Train Accessibility] Components on 'Gold points UI':
+  [0] Gold points UI: RectTransform, GoldScoreModifierDisplay, TooltipProviderComponent, GameUISelectableWithNavigation, LayoutElement, 
+  [1] Content: RectTransform, HorizontalLayoutGroup, 
+  [2] Bonus row: RectTransform, LayoutElement, HorizontalLayoutGroup, 
+  [3] Score row: RectTransform, HorizontalLayoutGroup, LayoutElement, 
+  [4] Content: RectTransform, VerticalLayoutGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Restart button':
+  [0] Restart button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, LayoutElement, 
+  [1] Buttons row: RectTransform, HorizontalLayoutGroup, CanvasGroup, LayoutElement, 
+  [2] Content: RectTransform, VerticalLayoutGroup, 
+  [3] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+  [4] Canvas: RectTransform, Canvas, GraphicRaycaster, CanvasScaler, 
+
+[Info   :Monster Train Accessibility] Components on 'Gold points UI':
+  [0] Gold points UI: RectTransform, GoldScoreModifierDisplay, TooltipProviderComponent, GameUISelectableWithNavigation, LayoutElement, 
+  [1] Content: RectTransform, HorizontalLayoutGroup, 
+  [2] Bonus row: RectTransform, LayoutElement, HorizontalLayoutGroup, 
+  [3] Score row: RectTransform, HorizontalLayoutGroup, LayoutElement, 
+  [4] Content: RectTransform, VerticalLayoutGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'RunDistanceUI':
+  [0] RunDistanceUI: RectTransform, RunDistanceDisplay, TooltipProviderComponent, GameUISelectableWithNavigation, 
+  [1] Run stats: RectTransform, HorizontalLayoutGroup, 
+  [2] Content: RectTransform, HorizontalLayoutGroup, 
+  [3] Run info: RectTransform, RunInfo, LayoutElement, 
+  [4] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Class Icons UI':
+  [0] Class Icons UI: RectTransform, ChosenClassesUI, TooltipProviderComponent, CanvasRenderer, Graphic2DInvisRaycastTarget, GameUISelectableButton, 
+  [1] Run stats: RectTransform, HorizontalLayoutGroup, 
+  [2] Content: RectTransform, HorizontalLayoutGroup, 
+  [3] Run info: RectTransform, RunInfo, LayoutElement, 
+  [4] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'RunDistanceUI':
+  [0] RunDistanceUI: RectTransform, RunDistanceDisplay, TooltipProviderComponent, GameUISelectableWithNavigation, 
+  [1] Run stats: RectTransform, HorizontalLayoutGroup, 
+  [2] Content: RectTransform, HorizontalLayoutGroup, 
+  [3] Run info: RectTransform, RunInfo, LayoutElement, 
+  [4] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Gold points UI':
+  [0] Gold points UI: RectTransform, GoldScoreModifierDisplay, TooltipProviderComponent, GameUISelectableWithNavigation, LayoutElement, 
+  [1] Content: RectTransform, HorizontalLayoutGroup, 
+  [2] Bonus row: RectTransform, LayoutElement, HorizontalLayoutGroup, 
+  [3] Score row: RectTransform, HorizontalLayoutGroup, LayoutElement, 
+  [4] Content: RectTransform, VerticalLayoutGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Restart button':
+  [0] Restart button: RectTransform, GameUISelectableButton, CanvasRenderer, Graphic2DInvisRaycastTarget, LayoutElement, 
+  [1] Buttons row: RectTransform, HorizontalLayoutGroup, CanvasGroup, LayoutElement, 
+  [2] Content: RectTransform, VerticalLayoutGroup, 
+  [3] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+  [4] Canvas: RectTransform, Canvas, GraphicRaycaster, CanvasScaler, 
+
+[Info   :Monster Train Accessibility] Components on 'BattleScoreUI':
+  [0] BattleScoreUI: RectTransform, BattleScoreUI, ScoreModifierDisplay, LayoutElement, 
+  [1] Content: RectTransform, HorizontalLayoutGroup, 
+  [2] Battle scores row: RectTransform, HorizontalLayoutGroup, LayoutElement, 
+  [3] Score row: RectTransform, HorizontalLayoutGroup, LayoutElement, 
+  [4] Content: RectTransform, VerticalLayoutGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Class Icons UI':
+  [0] Class Icons UI: RectTransform, ChosenClassesUI, TooltipProviderComponent, CanvasRenderer, Graphic2DInvisRaycastTarget, GameUISelectableButton, 
+  [1] Run stats: RectTransform, HorizontalLayoutGroup, 
+  [2] Content: RectTransform, HorizontalLayoutGroup, 
+  [3] Run info: RectTransform, RunInfo, LayoutElement, 
+  [4] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'BattleScoreUI':
+  [0] BattleScoreUI: RectTransform, BattleScoreUI, ScoreModifierDisplay, LayoutElement, 
+  [1] Content: RectTransform, HorizontalLayoutGroup, 
+  [2] Battle scores row: RectTransform, HorizontalLayoutGroup, LayoutElement, 
+  [3] Score row: RectTransform, HorizontalLayoutGroup, LayoutElement, 
+  [4] Content: RectTransform, VerticalLayoutGroup, 
+
+[Info   :Monster Train Accessibility] Components on 'Class Icons UI':
+  [0] Class Icons UI: RectTransform, ChosenClassesUI, TooltipProviderComponent, CanvasRenderer, Graphic2DInvisRaycastTarget, GameUISelectableButton, 
+  [1] Run stats: RectTransform, HorizontalLayoutGroup, 
+  [2] Content: RectTransform, HorizontalLayoutGroup, 
+  [3] Run info: RectTransform, RunInfo, LayoutElement, 
+  [4] GameOverScreen: RectTransform, GameOverScreen, CanvasGroup, 
+
+[Info   :Monster Train Accessibility] Screen reader output shutdown complete
