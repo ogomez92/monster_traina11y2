@@ -101,15 +101,28 @@ namespace MonsterTrainAccessibility.Patches.Combat
                     _lastAnnounceKey = announceKey;
                     _lastAnnounceTime = currentTime;
 
+                    // Floor prefix: room 0 = floor 3, room 2 = floor 1, room 3 = pyre
+                    int roomIdx = CharacterStateHelper.GetRoomIndex(__instance);
+                    string floorPrefix = "";
+                    if (roomIdx >= 0 && roomIdx <= 2)
+                    {
+                        int userFloor = 3 - roomIdx;
+                        floorPrefix = $"Floor {userFloor}: ";
+                    }
+                    else if (roomIdx == 3)
+                    {
+                        floorPrefix = "Pyre room: ";
+                    }
+
                     // Build announcement
                     string announcement;
                     if (!string.IsNullOrEmpty(attackerName) && attackerName != "Unit")
                     {
-                        announcement = $"{attackerName} hits {targetName} for {damage}";
+                        announcement = $"{floorPrefix}{attackerName} hits {targetName} for {damage}";
                     }
                     else
                     {
-                        announcement = $"{targetName} takes {damage} damage";
+                        announcement = $"{floorPrefix}{targetName} takes {damage} damage";
                     }
 
                     if (newHP > 0)

@@ -114,8 +114,15 @@ namespace MonsterTrainAccessibility
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             Log?.LogInfo($"Scene loaded: {scene.name} (mode: {mode})");
+            EnsureHandlers();
+        }
 
-            // Verify handlers still exist, recreate if destroyed
+        /// <summary>
+        /// Verify handlers still exist and recreate if destroyed.
+        /// Called from scene loads and Harmony patches for resilient recovery.
+        /// </summary>
+        public static void EnsureHandlers()
+        {
             if (_handlersCreated && MenuHandler == null)
             {
                 Log?.LogWarning("MenuHandler was destroyed! Recreating...");
@@ -195,6 +202,15 @@ namespace MonsterTrainAccessibility
             AllEnemiesDefeatedPatch.TryPatch(_harmony);
             MaxHPBuffPatch.TryPatch(_harmony);
             UpdateHpPatch.TryPatch(_harmony);
+            TriggerAbilityPatch.TryPatch(_harmony);
+            AttackBuffPatch.TryPatch(_harmony);
+            AttackDebuffPatch.TryPatch(_harmony);
+            MaxHPDebuffPatch.TryPatch(_harmony);
+            CharacterMovementPatch.TryPatch(_harmony);
+            EquipmentPatch.TryPatch(_harmony);
+            MoonPhasePatch.TryPatch(_harmony);
+            PyreHealPatch.TryPatch(_harmony);
+            WaveStartPatch.TryPatch(_harmony);
 
             // Card event patches
             CardDrawPatch.TryPatch(_harmony);
@@ -253,6 +269,7 @@ namespace MonsterTrainAccessibility
                 new ChallengesHelp(),          // Priority 45 - challenges screen
                 new ClanSelectionHelp(),       // Priority 50
                 new RegionSelectionHelp(),     // Priority 50 - region selection
+                new SettingsHelp(),            // Priority 55 - settings screen
                 new CompendiumHelp(),          // Priority 50 - compendium/logbook
                 new SoulProgressionHelp(),     // Priority 50 - soul progression
                 new MapHelp(),                 // Priority 60

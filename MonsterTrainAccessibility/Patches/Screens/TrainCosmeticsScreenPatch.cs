@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Help;
 using System;
 
 namespace MonsterTrainAccessibility.Patches.Screens
@@ -45,6 +46,7 @@ namespace MonsterTrainAccessibility.Patches.Screens
             try
             {
                 MonsterTrainAccessibility.LogInfo("Train cosmetics screen entered");
+                ScreenStateTracker.SetScreen(Help.GameScreen.TrainCosmetics);
                 MonsterTrainAccessibility.ScreenReader?.Speak("Train Cosmetics. Customize your train appearance. Use arrow keys to browse options. Press F1 for help.");
             }
             catch (Exception ex)

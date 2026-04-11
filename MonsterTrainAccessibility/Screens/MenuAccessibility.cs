@@ -623,6 +623,20 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
+            // 3.5b Check for run setup clan selection tiles (RunSetupClanSelectionItemUI)
+            text = ClanSelectionTextReader.GetRunSetupClanItemText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 3.5c Check for run setup pyre heart selection tiles (RunSetupPyreHeartSelectionItemUI)
+            text = PyreHeartTextReader.GetRunSetupPyreHeartItemText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // 3.6 Check for champion choice buttons
             text = ClanSelectionTextReader.GetChampionChoiceText(go);
             if (!string.IsNullOrEmpty(text))
@@ -639,6 +653,13 @@ namespace MonsterTrainAccessibility.Screens
 
             // 4. Check for map branch choice elements
             text = MapTextReader.GetBranchChoiceText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 4.5 Check for TooltipProviderComponent (e.g. SubclanVictoryItem in checklist)
+            text = TooltipTextReader.GetTooltipTextWithBody(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
@@ -678,10 +699,20 @@ namespace MonsterTrainAccessibility.Screens
                 }
             }
 
-            // If text is short (3-4 chars) or empty, look for context
+            // If text is short (<=4 chars) or empty, look for a better label
             if (string.IsNullOrEmpty(directText) || directText.Length <= 4)
             {
-                // Check parent for label
+                // Prefer the GameObject's own cleaned name first — for buttons like
+                // "Settings Option" with a short label "Esc" (keyboard hint), the
+                // object name is far more informative than a hierarchy fallback that
+                // would produce "Main Menu Screen: Esc".
+                string ownName = CleanGameObjectName(go.name);
+                if (!string.IsNullOrEmpty(ownName) && ownName.Length > 4 && !IsGenericContainerName(ownName))
+                {
+                    return ownName;
+                }
+
+                // Otherwise fall back to walking the hierarchy
                 string contextLabel = GetContextLabelFromHierarchy(go);
                 if (!string.IsNullOrEmpty(contextLabel))
                 {
@@ -694,6 +725,24 @@ namespace MonsterTrainAccessibility.Screens
             }
 
             return directText;
+        }
+
+        private static readonly string[] _genericContainerNames = new[]
+        {
+            "container", "panel", "holder", "group", "content", "root",
+            "options", "input area", "section", "buttons", "layout", "wrapper",
+            "item", "entry", "element"
+        };
+
+        private bool IsGenericContainerName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return true;
+            string lower = name.ToLowerInvariant().Trim();
+            foreach (var g in _genericContainerNames)
+            {
+                if (lower == g) return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -913,6 +962,8 @@ namespace MonsterTrainAccessibility.Screens
             name = name.Replace("(Clone)", "");
             name = name.Replace("Button", "");
             name = name.Replace("Btn", "");
+            name = name.Replace(" Option", "");
+            name = name.Replace(" Item", "");
             name = name.Trim();
 
             // Add spaces before capital letters (CamelCase to words)

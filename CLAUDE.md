@@ -17,11 +17,27 @@ Output: `release/BepInEx/plugins/MonsterTrainAccessibility.dll` (auto-copied to 
 
 The csproj uses `$(MonsterTrainPath)` defaulting to `C:\Program Files (x86)\Steam\steamapps\common\Monster Train 2`. Override with env var `MONSTER_TRAIN_PATH` or `-p:MonsterTrainPath="path"`.
 
+**Build verification**: The game may not be installed on the dev machine. Build always produces assembly reference errors (CS0246, CS0234, CS0012) which are expected. To verify no real errors, filter with:
+```bash
+dotnet build -c Release 2>&1 | grep -v "CS0246\|CS0234\|CS0012\|warning"
+```
+
 ## Testing
 
 No automated tests. Test by building, launching MT2, and checking:
 - Log: `C:\Program Files (x86)\Steam\steamapps\common\Monster Train 2\BepInEx\LogOutput.log`
 - Screen reader announcements with NVDA running
+
+## Game Source Reference
+
+The `game/` directory contains ~1900 decompiled MT2 game source files (Assembly-CSharp). **Always consult these when writing reflection code** to get exact method signatures, field names, parameter types, and enum values. Key files:
+- `game/CardState.cs`, `game/CardData.cs` - card system
+- `game/CharacterData.cs`, `game/SubtypeData.cs` - unit data
+- `game/CollectableRarity.cs` - rarity enum (Common, Uncommon, Rare, Champion, Starter, Unset)
+- `game/RelicData.cs` - artifact/relic system
+- `game/StoryEventScreen.cs` - event screens
+- `game/MerchantGoodUIBase.cs`, `game/BuyButton.cs` - shop system
+- `game/AllGameManagers.cs` - central manager access
 
 ## Architecture
 
@@ -47,8 +63,8 @@ Screen Handler → Text Reader (extracts data via reflection)
 | `Battle/` | Battle state readers (hand, floors, enemies, resources) + targeting systems |
 | `Screens/` | Screen coordinators (MenuAccessibility, BattleAccessibility) |
 | `Screens/Readers/` | Text extraction per screen type (static classes, pure functions) |
-| `Patches/Screens/` | One Harmony patch per game screen transition (43 patches) |
-| `Patches/Combat/` | One Harmony patch per combat event type (20 patches) |
+| `Patches/Screens/` | One Harmony patch per game screen transition (44 patches) |
+| `Patches/Combat/` | One Harmony patch per combat event type (24 patches) |
 | `Patches/` | Card event patches, card targeting, character state helper |
 | `Help/Contexts/` | One help context per screen (25 contexts, priority-based) |
 | `Utilities/` | Shared helpers: text processing, localization, UI visibility, reflection |
@@ -59,6 +75,7 @@ Screen Handler → Text Reader (extracts data via reflection)
 - **Check `FloorTargetingSystem.IsTargeting` before announcing damage/deaths** - the game calculates preview damage when selecting floors; those shouldn't be announced.
 - **Patches use `TryPatch()` pattern** with `AccessTools.TypeByName()` for runtime reflection - never `[HarmonyPatch]` attributes.
 - **`GameScreen` enum requires `Help.GameScreen.X`** in Patches namespace due to `MonsterTrainAccessibility` being both a namespace and class name.
+- **Always verify game API in `game/` source** before writing reflection code. Method names, parameter counts, and return types must match exactly.
 
 ### Key Components
 
@@ -70,7 +87,19 @@ Screen Handler → Text Reader (extracts data via reflection)
 
 **Text Readers** (`Screens/Readers/`): Static classes that extract readable text from GameObjects. Each is a pure function: GameObject in, string out. The `GetTextFromGameObject()` dispatcher tries them in order: dialog, card, shop, battle intro, map, settings, compendium, clan selection, champion, relic, tooltip, event.
 
-**Help System**: Priority-based context selection. Higher priority wins. Each context checks `ScreenStateTracker.CurrentScreen` and returns help text with available keyboard shortcuts.
+**Help System**: Priority-based context selection. Higher priority wins (0 = fallback, 110 = dialogs highest). Each context checks `ScreenStateTracker.CurrentScreen` and returns help text with available keyboard shortcuts.
+
+**KeywordManager** (`Core/KeywordManager.cs`): Single source of truth for keyword definitions. Dynamically loads from the game at runtime via `StatusEffectManager.StatusIdToLocalizationExpression`, `CharacterTriggerData.TriggerToLocalizationExpression`, and card trait names. Has a fallback dictionary (~75 keywords) for resilience. Both `CardTextReader` and `HandReader` use `KeywordManager.GetKeywords()`.
+
+### Card Text Reader Helpers
+
+`CardTextReader` provides reusable static helpers for extracting card metadata via reflection:
+- `GetRarityString(obj, type)` - `CollectableRarity` enum → localized string (filters Starter/Unset)
+- `GetClanFromCardData(cardData, type)` - via `GetLinkedClass()` → `ClassData.GetTitle()`
+- `GetUnitSubtype(cardState, type)` - via `CharacterData.GetLocalizedSubtype()` or `GetSubtypes()`
+- `GetCardSize(cardState, type)` - via `CardState.GetSize()`
+- `GetUnitStats(cardState, type)` - `GetTotalAttackDamage()` (int) + `GetHealth()` (float)
+- `FormatCardDetails(cardState)` - full card announcement: "Name, Rarity Clan Type, subtype, size, cost. Description. Stats. Keywords."
 
 ### Utilities
 
@@ -102,6 +131,33 @@ Note: F and E conflict with game's native shortcuts (F = Unit Details, E = End T
 Team.Type.Monsters  // Player's units
 Team.Type.Heroes    // Enemy units (confusing naming)
 CardType.Monster / CardType.Spell / CardType.Blight
+CollectableRarity: Common=0, Uncommon=1, Rare=2, Champion=3, Starter=4, Unset=-1
+```
+
+### Key Game API (CardState)
+```csharp
+GetTitle()                        // Localized card name
+GetCardType()                     // CardType enum
+GetRarity() / GetRarityType()     // CollectableRarity enum
+GetCostWithoutAnyModifications()  // Base ember cost (int)
+GetCost(stats, monsters, relics, room)  // Computed cost with modifiers
+GetCardText(cardStats, saveManager, includeTraits)  // Effect text (NOT parameterless)
+GetSpawnCharacterData()           // CharacterData? for unit cards
+GetTotalAttackDamage()            // int (NOT GetAttackDamage)
+GetHealth()                       // float (NOT int)
+GetSize(ignoreTempUpgrade=false)  // int, clamped 1-6
+GetTraitStates()                  // List of CardTraitState
+GetCardDataRead()                 // CardData reference (NOT GetCardDataRead on all types)
+```
+
+### Key Game API (CharacterData)
+```csharp
+GetName()                  // Localized name
+GetAttackDamage()          // int
+GetHealth()                // int (unlike CardState which returns float)
+GetSize()                  // int
+GetLocalizedSubtype()      // First localized subtype or null
+GetSubtypes()              // List<SubtypeData> via SubtypeManager
 ```
 
 ### Floor/Room Index Mapping
@@ -115,17 +171,9 @@ Room Index 3 = Pyre Room
 ### Localization
 
 Use `LocalizationHelper.TryLocalize(text)` or `LocalizationHelper.Localize(key)`. Best practice:
-1. Try `GetName()`/`GetDescription()` first - usually return localized text
+1. Try `GetName()`/`GetTitle()`/`GetDescription()` first - usually return localized text
 2. If those return keys (contain `-` and `_`), localize with `LocalizationHelper.Localize()`
 3. Fall back to type-name-based display names
-
-### Keyword Dictionaries
-
-Keywords (status effects, card mechanics) are in:
-- `Screens/Readers/CardTextReader.cs`: `ExtractKeywordsFromDescription()`
-- `Battle/HandReader.cs`: `knownKeywords` dictionary
-
-Add new keywords to BOTH locations. Format: `{ "KeywordName", "KeywordName: Brief explanation" }`
 
 ### Text Extraction Dispatcher
 

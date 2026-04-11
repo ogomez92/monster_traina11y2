@@ -162,44 +162,12 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 string damageKey = $"{attackerName}_{targetName}_{damage}_{currentHP}";
                 float currentTime = UnityEngine.Time.unscaledTime;
 
-                if (damageKey != _lastDamageKey || currentTime - _lastDamageTime > 0.2f)
-                {
-                    _lastDamageKey = damageKey;
-                    _lastDamageTime = currentTime;
-
-                    // Get the floor where combat is happening
-                    int floor = GetUnitFloor(target);
-                    string floorStr = floor > 0 ? $"Floor {floor}: " : "";
-
-                    MonsterTrainAccessibility.LogInfo($"Combat damage: {attackerName ?? "Unknown"} deals {damage} to {targetName} (enemy={isTargetEnemy}), HP now {currentHP}, floor={floor}");
-
-                    // Build the announcement with floor context
-                    string announcement;
-                    if (!string.IsNullOrEmpty(attackerName) && attackerName != "Unknown")
-                    {
-                        announcement = $"{floorStr}{attackerName} hits {targetName} for {damage}";
-                    }
-                    else
-                    {
-                        announcement = $"{floorStr}{targetName} takes {damage} damage";
-                    }
-
-                    // Add HP info for friendly units
-                    if (!isTargetEnemy && currentHP > 0)
-                    {
-                        announcement += $", {currentHP} HP left";
-                    }
-
-                    MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
-
-                    // Check for death
-                    if (currentHP <= 0)
-                    {
-                        int roomIndex = GetRoomIndex(target);
-                        int userFloor = RoomIndexToUserFloor(roomIndex);
-                        MonsterTrainAccessibility.BattleHandler?.OnUnitDied(targetName, isTargetEnemy, userFloor);
-                    }
-                }
+                // Announcement is handled authoritatively by UpdateHpPatch (accurate HP,
+                // floor context, death detection). This patch used to also announce, which
+                // caused triple damage announcements per hit. Left as a no-op in case other
+                // subsystems reference _preHpTracker or this hook point in the future.
+                _lastDamageKey = damageKey;
+                _lastDamageTime = currentTime;
             }
             catch (Exception ex)
             {

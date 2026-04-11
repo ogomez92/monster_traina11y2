@@ -168,7 +168,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
-        /// Extract card info from CardState or CardData
+        /// Extract card info from CardState or CardData.
+        /// Used by shop items and other contexts where we have raw data objects.
         /// </summary>
         public static string ExtractCardInfo(object cardObj)
         {
@@ -176,21 +177,16 @@ namespace MonsterTrainAccessibility.Screens.Readers
 
             try
             {
-                var cardType = cardObj.GetType();
+                var objType = cardObj.GetType();
 
-                // If this is CardState, get CardData first
-                object cardData = cardObj;
-                if (cardType.Name == "CardState")
+                // If this is CardState, delegate to FormatCardDetails for full info
+                if (objType.Name == "CardState")
                 {
-                    var getDataMethod = cardType.GetMethod("GetCardDataRead", Type.EmptyTypes);
-                    if (getDataMethod != null)
-                    {
-                        cardData = getDataMethod.Invoke(cardObj, null);
-                        if (cardData == null) return null;
-                    }
+                    return FormatCardDetails(cardObj);
                 }
 
-                var dataType = cardData.GetType();
+                // Otherwise this is CardData - extract what we can
+                var dataType = objType;
                 string name = null;
                 string description = null;
                 int cost = -1;
@@ -199,48 +195,77 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
                 if (getNameMethod != null)
                 {
-                    name = getNameMethod.Invoke(cardData, null) as string;
+                    name = getNameMethod.Invoke(cardObj, null) as string;
                 }
+
+                // Get rarity
+                string rarity = GetRarityString(cardObj, dataType);
+
+                // Get card type
+                string cardType = null;
+                var getCardTypeMethod = dataType.GetMethod("GetCardType");
+                if (getCardTypeMethod != null)
+                {
+                    var cardTypeObj = getCardTypeMethod.Invoke(cardObj, null);
+                    if (cardTypeObj != null)
+                    {
+                        cardType = cardTypeObj.ToString();
+                        if (cardType == "Monster") cardType = "Unit";
+                    }
+                }
+
+                // Get clan
+                string clanName = GetClanFromCardData(cardObj, dataType);
 
                 // Get description
                 var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes);
                 if (getDescMethod != null)
                 {
-                    description = getDescMethod.Invoke(cardData, null) as string;
+                    description = getDescMethod.Invoke(cardObj, null) as string;
                 }
 
                 // Get cost
                 var getCostMethod = dataType.GetMethod("GetCost", Type.EmptyTypes);
                 if (getCostMethod != null)
                 {
-                    var costResult = getCostMethod.Invoke(cardData, null);
+                    var costResult = getCostMethod.Invoke(cardObj, null);
                     if (costResult is int c)
                         cost = c;
                 }
 
                 if (!string.IsNullOrEmpty(name))
                 {
-                    List<string> parts = new List<string>();
-                    parts.Add(TextUtilities.StripRichTextTags(name));
+                    var sb = new StringBuilder();
+                    sb.Append(TextUtilities.StripRichTextTags(name));
+
+                    // Build type info: "Rare Hellhorned Unit"
+                    var typeInfoParts = new List<string>();
+                    if (!string.IsNullOrEmpty(rarity)) typeInfoParts.Add(rarity);
+                    if (!string.IsNullOrEmpty(clanName)) typeInfoParts.Add(clanName);
+                    if (!string.IsNullOrEmpty(cardType)) typeInfoParts.Add(cardType);
+                    if (typeInfoParts.Count > 0)
+                    {
+                        sb.Append($", {string.Join(" ", typeInfoParts)}");
+                    }
 
                     if (cost >= 0)
                     {
-                        parts.Add($"{cost} ember");
+                        sb.Append($", {cost} ember");
                     }
 
                     if (!string.IsNullOrEmpty(description))
                     {
-                        parts.Add(TextUtilities.StripRichTextTags(description));
+                        sb.Append($". {TextUtilities.StripRichTextTags(description)}");
                     }
 
                     // Add keyword definitions
-                    string keywords = GetCardKeywordTooltips(cardObj, cardData, description);
+                    string keywords = GetCardKeywordTooltips(cardObj, cardObj, description);
                     if (!string.IsNullOrEmpty(keywords))
                     {
-                        parts.Add($"Keywords: {keywords}");
+                        sb.Append($". Keywords: {keywords}");
                     }
 
-                    return string.Join(". ", parts);
+                    return sb.ToString();
                 }
             }
             catch (Exception ex)
@@ -252,7 +277,9 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
-        /// Format card details into a readable string (name, type, clan, cost, description)
+        /// Format card details into a readable string.
+        /// Format: "Name, Rarity ClanName CardType, Cost ember. Description. Stats. Keywords."
+        /// Example: "Hornbreaker Prince, Rare Hellhorned Unit, 2 ember. Deal 30 damage. 30 attack, 5 health."
         /// </summary>
         public static string FormatCardDetails(object cardState)
         {
@@ -261,15 +288,12 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 var sb = new StringBuilder();
                 var type = cardState.GetType();
 
-                MonsterTrainAccessibility.LogInfo($"FormatCardDetails called for type: {type.Name}");
-
                 // Get card name
                 string name = "Unknown Card";
                 var getTitleMethod = type.GetMethod("GetTitle", Type.EmptyTypes);
                 if (getTitleMethod != null)
                 {
                     name = getTitleMethod.Invoke(cardState, null) as string ?? "Unknown Card";
-                    MonsterTrainAccessibility.LogInfo($"Card name: {name}");
                 }
 
                 // Get card type
@@ -295,27 +319,29 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     if (costResult is int c) cost = c;
                 }
 
-                // Get CardData to access linked class (clan) and better descriptions
+                // Get rarity directly from CardState (has GetRarity())
+                string rarity = GetRarityString(cardState, type);
+
+                // Get subtype and size directly from CardState for unit cards
+                string unitSubtype = null;
+                int cardSize = -1;
+                if (cardType == "Unit" || cardType == "Monster")
+                {
+                    unitSubtype = GetUnitSubtype(cardState, type);
+                    cardSize = GetCardSize(cardState, type);
+                }
+
+                // Get CardData for clan and descriptions
                 object cardData = null;
                 string clanName = null;
                 string description = null;
 
                 var getCardDataMethod = type.GetMethod("GetCardDataRead", Type.EmptyTypes)
                                      ?? type.GetMethod("GetCardData", Type.EmptyTypes);
-                MonsterTrainAccessibility.LogInfo($"GetCardData method: {(getCardDataMethod != null ? getCardDataMethod.Name : "NOT FOUND")}");
-
-                // Log all methods that might be related to card data
-                var cardDataMethods = type.GetMethods()
-                    .Where(m => m.Name.Contains("CardData") || m.Name.Contains("Data"))
-                    .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
-                    .Distinct()
-                    .ToArray();
-                MonsterTrainAccessibility.LogInfo($"CardState data methods: {string.Join(", ", cardDataMethods)}");
 
                 if (getCardDataMethod != null)
                 {
                     cardData = getCardDataMethod.Invoke(cardState, null);
-                    MonsterTrainAccessibility.LogInfo($"CardData result: {(cardData != null ? cardData.GetType().Name : "null")}");
                 }
 
                 if (cardData != null)
@@ -323,30 +349,7 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var cardDataType = cardData.GetType();
 
                     // Get linked class (clan) from CardData
-                    var linkedClassField = cardDataType.GetField("linkedClass", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (linkedClassField != null)
-                    {
-                        var linkedClass = linkedClassField.GetValue(cardData);
-                        if (linkedClass != null)
-                        {
-                            var classType = linkedClass.GetType();
-                            // Try GetTitle() for localized name
-                            var getClassTitleMethod = classType.GetMethod("GetTitle", Type.EmptyTypes);
-                            if (getClassTitleMethod != null)
-                            {
-                                clanName = getClassTitleMethod.Invoke(linkedClass, null) as string;
-                            }
-                            // Fallback to GetName()
-                            if (string.IsNullOrEmpty(clanName))
-                            {
-                                var getClassNameMethod = classType.GetMethod("GetName", Type.EmptyTypes);
-                                if (getClassNameMethod != null)
-                                {
-                                    clanName = getClassNameMethod.Invoke(linkedClass, null) as string;
-                                }
-                            }
-                        }
-                    }
+                    clanName = GetClanFromCardData(cardData, cardDataType);
 
                     // Try GetDescription from CardData for effect text
                     var getDescMethod = cardDataType.GetMethod("GetDescription", Type.EmptyTypes);
@@ -354,68 +357,12 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     {
                         description = getDescMethod.Invoke(cardData, null) as string;
                     }
-
-                    // If no parameterless GetDescription, try with RelicManager parameter
-                    if (string.IsNullOrEmpty(description))
-                    {
-                        var allDescMethods = cardDataType.GetMethods().Where(m => m.Name.Contains("Description")).ToArray();
-                        foreach (var descMethod in allDescMethods)
-                        {
-                            var ps = descMethod.GetParameters();
-                            // Log available description methods for debugging
-                            MonsterTrainAccessibility.LogInfo($"CardData has description method: {descMethod.Name}({string.Join(", ", ps.Select(p => p.ParameterType.Name))})");
-                        }
-                    }
                 }
 
                 // Try GetCardText on CardState - this is the main method for card effect text
                 if (string.IsNullOrEmpty(description))
                 {
-                    // Log all GetCardText methods for debugging
-                    var cardTextMethods = type.GetMethods().Where(m => m.Name == "GetCardText").ToArray();
-                    MonsterTrainAccessibility.LogInfo($"Found {cardTextMethods.Length} GetCardText methods");
-                    foreach (var method in cardTextMethods)
-                    {
-                        var ps = method.GetParameters();
-                        MonsterTrainAccessibility.LogInfo($"  GetCardText({string.Join(", ", ps.Select(p => $"{p.ParameterType.Name} {p.Name}"))})");
-                    }
-
-                    // Try GetCardText with no parameters first
-                    var getCardTextMethod = type.GetMethod("GetCardText", Type.EmptyTypes);
-                    if (getCardTextMethod != null)
-                    {
-                        description = getCardTextMethod.Invoke(cardState, null) as string;
-                        MonsterTrainAccessibility.LogInfo($"GetCardText() returned: '{description}'");
-                    }
-
-                    // If no parameterless version, try with parameters
-                    if (string.IsNullOrEmpty(description))
-                    {
-                        foreach (var method in cardTextMethods)
-                        {
-                            var ps = method.GetParameters();
-                            try
-                            {
-                                var args = new object[ps.Length];
-                                for (int i = 0; i < ps.Length; i++)
-                                {
-                                    if (ps[i].ParameterType == typeof(bool))
-                                        args[i] = true;
-                                    else if (ps[i].ParameterType.IsValueType)
-                                        args[i] = Activator.CreateInstance(ps[i].ParameterType);
-                                    else
-                                        args[i] = null;
-                                }
-                                description = method.Invoke(cardState, args) as string;
-                                MonsterTrainAccessibility.LogInfo($"GetCardText with {ps.Length} params returned: '{description}'");
-                                if (!string.IsNullOrEmpty(description)) break;
-                            }
-                            catch (Exception ex)
-                            {
-                                MonsterTrainAccessibility.LogInfo($"GetCardText failed: {ex.Message}");
-                            }
-                        }
-                    }
+                    description = GetCardTextFromState(cardState, type);
                 }
 
                 // Fallback: try GetAssetDescription
@@ -428,28 +375,35 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     }
                 }
 
-                // Log if we still have no description
-                if (string.IsNullOrEmpty(description))
+                // Build announcement: Name, Rarity Clan Type, Cost ember. Description.
+                sb.Append(name);
+
+                // Build the type info: "Rare Hellhorned Unit" or "Common Spell"
+                var typeInfoParts = new List<string>();
+                if (!string.IsNullOrEmpty(rarity)) typeInfoParts.Add(rarity);
+                if (!string.IsNullOrEmpty(clanName)) typeInfoParts.Add(clanName);
+                if (!string.IsNullOrEmpty(cardType)) typeInfoParts.Add(cardType);
+                if (typeInfoParts.Count > 0)
                 {
-                    var cardTextMethods = type.GetMethods().Where(m => m.Name == "GetCardText").ToArray();
-                    MonsterTrainAccessibility.LogInfo($"GetCardText methods: {string.Join(", ", cardTextMethods.Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})"))}");
+                    sb.Append($", {string.Join(" ", typeInfoParts)}");
                 }
 
-                // Build announcement: Name (Type), Clan, Cost. Effect.
-                sb.Append(name);
-                if (!string.IsNullOrEmpty(cardType))
+                // Unit subtype (e.g. "Imp", "Demon")
+                if (!string.IsNullOrEmpty(unitSubtype))
                 {
-                    sb.Append($" ({cardType})");
+                    sb.Append($", {unitSubtype}");
                 }
-                if (!string.IsNullOrEmpty(clanName))
+
+                // Card size for units
+                if (cardSize > 1)
                 {
-                    sb.Append($", {clanName}");
+                    sb.Append($", size {cardSize}");
                 }
+
                 sb.Append($", {cost} ember");
 
                 if (!string.IsNullOrEmpty(description))
                 {
-                    // Strip rich text tags for screen reader output
                     description = TextUtilities.StripRichTextTags(description);
                     sb.Append($". {description}");
                 }
@@ -457,104 +411,14 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 // For unit cards, try to get attack and health stats
                 if (cardType == "Unit" || cardType == "Monster")
                 {
-                    MonsterTrainAccessibility.LogInfo($"Unit card detected, looking for stats. cardData is {(cardData != null ? "not null" : "NULL")}");
-                    int attack = -1;
-                    int health = -1;
-
-                    // Try to get stats from CardState
-                    var getAttackMethod = type.GetMethod("GetAttackDamage", Type.EmptyTypes);
-                    MonsterTrainAccessibility.LogInfo($"GetAttackDamage on CardState: {(getAttackMethod != null ? "found" : "not found")}");
-                    if (getAttackMethod != null)
+                    string stats = GetUnitStats(cardState, type);
+                    if (!string.IsNullOrEmpty(stats))
                     {
-                        var attackResult = getAttackMethod.Invoke(cardState, null);
-                        if (attackResult is int a) attack = a;
-                        MonsterTrainAccessibility.LogInfo($"Attack from CardState: {attack}");
-                    }
-
-                    var getHPMethod = type.GetMethod("GetHP", Type.EmptyTypes)
-                                   ?? type.GetMethod("GetHealth", Type.EmptyTypes)
-                                   ?? type.GetMethod("GetMaxHP", Type.EmptyTypes);
-                    MonsterTrainAccessibility.LogInfo($"GetHP/Health on CardState: {(getHPMethod != null ? getHPMethod.Name : "not found")}");
-                    if (getHPMethod != null)
-                    {
-                        var hpResult = getHPMethod.Invoke(cardState, null);
-                        if (hpResult is int h) health = h;
-                        MonsterTrainAccessibility.LogInfo($"Health from CardState: {health}");
-                    }
-
-                    // If not found on CardState, try GetSpawnCharacterData directly on CardState
-                    MonsterTrainAccessibility.LogInfo($"Stats after CardState check: attack={attack}, health={health}");
-                    if (attack < 0 || health < 0)
-                    {
-                        // GetSpawnCharacterData is directly on CardState, not CardData
-                        var getSpawnCharMethod = type.GetMethod("GetSpawnCharacterData", Type.EmptyTypes);
-                        MonsterTrainAccessibility.LogInfo($"GetSpawnCharacterData on CardState: {(getSpawnCharMethod != null ? "found" : "not found")}");
-                        if (getSpawnCharMethod != null)
-                        {
-                            var charData = getSpawnCharMethod.Invoke(cardState, null);
-                            MonsterTrainAccessibility.LogInfo($"SpawnCharacterData result: {(charData != null ? charData.GetType().Name : "null")}");
-                            if (charData != null)
-                            {
-                                var charDataType = charData.GetType();
-
-                                // Log all methods on character data
-                                var charMethods = charDataType.GetMethods()
-                                    .Where(m => m.Name.Contains("Attack") || m.Name.Contains("Damage") || m.Name.Contains("HP") || m.Name.Contains("Health") || m.Name.Contains("Size"))
-                                    .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
-                                    .Distinct()
-                                    .ToArray();
-                                MonsterTrainAccessibility.LogInfo($"CharacterData stat methods available: {string.Join(", ", charMethods)}");
-
-                                if (attack < 0)
-                                {
-                                    var charAttackMethod = charDataType.GetMethod("GetAttackDamage", Type.EmptyTypes);
-                                    if (charAttackMethod != null)
-                                    {
-                                        var attackResult = charAttackMethod.Invoke(charData, null);
-                                        if (attackResult is int a) attack = a;
-                                        MonsterTrainAccessibility.LogInfo($"Attack from CharacterData: {attack}");
-                                    }
-                                }
-
-                                if (health < 0)
-                                {
-                                    var charHPMethod = charDataType.GetMethod("GetHealth", Type.EmptyTypes)
-                                                   ?? charDataType.GetMethod("GetHP", Type.EmptyTypes)
-                                                   ?? charDataType.GetMethod("GetMaxHP", Type.EmptyTypes);
-                                    if (charHPMethod != null)
-                                    {
-                                        var hpResult = charHPMethod.Invoke(charData, null);
-                                        if (hpResult is int h) health = h;
-                                        MonsterTrainAccessibility.LogInfo($"Health from CharacterData: {health}");
-                                    }
-                                }
-
-                                // Log what methods are available if still not found
-                                if (attack < 0 || health < 0)
-                                {
-                                    var statMethods = charDataType.GetMethods()
-                                        .Where(m => m.Name.Contains("Attack") || m.Name.Contains("Damage") || m.Name.Contains("HP") || m.Name.Contains("Health") || m.Name.Contains("Size"))
-                                        .Select(m => m.Name)
-                                        .Distinct()
-                                        .ToArray();
-                                    MonsterTrainAccessibility.LogInfo($"CharacterData stat methods: {string.Join(", ", statMethods)}");
-                                }
-                            }
-                        }
-                    }
-
-                    // Append unit stats
-                    if (attack >= 0 || health >= 0)
-                    {
-                        var stats = new List<string>();
-                        if (attack >= 0) stats.Add($"{attack} attack");
-                        if (health >= 0) stats.Add($"{health} health");
-                        sb.Append($". {string.Join(", ", stats)}");
+                        sb.Append($". {stats}");
                     }
                 }
 
                 // Get keyword tooltips (Permafrost, Frozen, Regen, etc.)
-                // Pass the description we already have to avoid re-fetching
                 string keywordTooltips = GetCardKeywordTooltips(cardState, cardData, description);
                 if (!string.IsNullOrEmpty(keywordTooltips))
                 {
@@ -569,6 +433,329 @@ namespace MonsterTrainAccessibility.Screens.Readers
             {
                 MonsterTrainAccessibility.LogError($"Error formatting card details: {ex.Message}");
             }
+            return null;
+        }
+
+        /// <summary>
+        /// Get rarity string from a CardState or CardData object.
+        /// Game API: CardState.GetRarity() / CardData.GetRarity() -> CollectableRarity enum
+        /// Attempts localization via game's localization system.
+        /// </summary>
+        public static string GetRarityString(object obj, Type objType)
+        {
+            try
+            {
+                string rarityStr = null;
+
+                // Try GetRarity() method (exists on both CardState and CardData)
+                var getRarityMethod = objType.GetMethod("GetRarity", Type.EmptyTypes)
+                                   ?? objType.GetMethod("GetRarityType", Type.EmptyTypes);
+                if (getRarityMethod != null)
+                {
+                    var rarityObj = getRarityMethod.Invoke(obj, null);
+                    if (rarityObj != null)
+                        rarityStr = rarityObj.ToString();
+                }
+
+                // Filter out non-meaningful values (Unset=-1, Starter=4, None)
+                if (string.IsNullOrEmpty(rarityStr) || rarityStr == "Unset" || rarityStr == "Starter" || rarityStr == "None")
+                    return null;
+
+                // Try to localize the rarity name
+                string[] locKeys = { $"Rarity_{rarityStr}", $"CollectionRarity_{rarityStr}", $"CardRarity_{rarityStr}" };
+                foreach (var key in locKeys)
+                {
+                    string localized = LocalizationHelper.TryLocalize(key);
+                    if (!string.IsNullOrEmpty(localized) && localized != key)
+                        return localized;
+                }
+
+                // Return the enum name as-is (English) if localization fails
+                return rarityStr;
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get clan name from CardData.
+        /// Game API: CardData.GetLinkedClass() -> ClassData, ClassData.GetTitle() for localized name
+        /// </summary>
+        public static string GetClanFromCardData(object cardData, Type cardDataType)
+        {
+            try
+            {
+                // Try GetLinkedClass() method first (game API)
+                var getLinkedClassMethod = cardDataType.GetMethod("GetLinkedClass", Type.EmptyTypes);
+                if (getLinkedClassMethod != null)
+                {
+                    var linkedClass = getLinkedClassMethod.Invoke(cardData, null);
+                    if (linkedClass != null)
+                    {
+                        return GetLocalizedName(linkedClass);
+                    }
+                }
+
+                // Fallback: try linkedClass field
+                var linkedClassField = cardDataType.GetField("linkedClass", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (linkedClassField != null)
+                {
+                    var linkedClass = linkedClassField.GetValue(cardData);
+                    if (linkedClass != null)
+                    {
+                        return GetLocalizedName(linkedClass);
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get localized name from a game object via GetTitle() or GetName()
+        /// </summary>
+        private static string GetLocalizedName(object obj)
+        {
+            if (obj == null) return null;
+            try
+            {
+                var objType = obj.GetType();
+                var getTitleMethod = objType.GetMethod("GetTitle", Type.EmptyTypes);
+                if (getTitleMethod != null)
+                {
+                    var name = getTitleMethod.Invoke(obj, null) as string;
+                    if (!string.IsNullOrEmpty(name)) return name;
+                }
+
+                var getNameMethod = objType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                {
+                    return getNameMethod.Invoke(obj, null) as string;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get unit subtype name (e.g. "Imp", "Demon", "Morsel") from spawn character data.
+        /// Game API: CharacterData.GetLocalizedSubtype() returns first localized subtype.
+        /// Also tries CharacterData.GetSubtypes() -> List of SubtypeData -> SubtypeData.LocalizedName
+        /// </summary>
+        public static string GetUnitSubtype(object cardState, Type cardStateType)
+        {
+            try
+            {
+                object charData = GetSpawnCharacterData(cardState, cardStateType);
+                if (charData == null) return null;
+
+                var charDataType = charData.GetType();
+
+                // Try GetLocalizedSubtype() first - game API returns first localized subtype
+                var getLocalizedSubtypeMethod = charDataType.GetMethod("GetLocalizedSubtype", Type.EmptyTypes);
+                if (getLocalizedSubtypeMethod != null)
+                {
+                    var subtype = getLocalizedSubtypeMethod.Invoke(charData, null) as string;
+                    if (!string.IsNullOrEmpty(subtype))
+                        return subtype;
+                }
+
+                // Try GetSubtypes() -> List<SubtypeData> -> SubtypeData.LocalizedName property
+                var getSubtypesMethod = charDataType.GetMethod("GetSubtypes", Type.EmptyTypes);
+                if (getSubtypesMethod != null)
+                {
+                    var subtypes = getSubtypesMethod.Invoke(charData, null) as System.Collections.IList;
+                    if (subtypes != null && subtypes.Count > 0)
+                    {
+                        var subtypeNames = new List<string>();
+                        foreach (var subtypeData in subtypes)
+                        {
+                            if (subtypeData == null) continue;
+                            var sdType = subtypeData.GetType();
+
+                            // Check IsNone first
+                            var isNoneProp = sdType.GetProperty("IsNone");
+                            if (isNoneProp != null && (bool)isNoneProp.GetValue(subtypeData))
+                                continue;
+
+                            // Get LocalizedName property (SubtypeData._subtype.Localize())
+                            var localizedNameProp = sdType.GetProperty("LocalizedName");
+                            if (localizedNameProp != null)
+                            {
+                                var name = localizedNameProp.GetValue(subtypeData) as string;
+                                if (!string.IsNullOrEmpty(name))
+                                    subtypeNames.Add(name);
+                            }
+                        }
+                        if (subtypeNames.Count > 0)
+                            return string.Join(", ", subtypeNames);
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get card/unit size.
+        /// Game API: CardState.GetSize() returns clamped 1-6 from spawned character.
+        /// </summary>
+        public static int GetCardSize(object cardState, Type cardStateType)
+        {
+            try
+            {
+                var getSizeMethod = cardStateType.GetMethod("GetSize", Type.EmptyTypes);
+                if (getSizeMethod != null)
+                {
+                    var result = getSizeMethod.Invoke(cardState, null);
+                    if (result is int size) return size;
+                }
+
+                // Fallback with bool param: GetSize(bool ignoreTempUpgrade)
+                var getSizeMethodBool = cardStateType.GetMethod("GetSize", new[] { typeof(bool) });
+                if (getSizeMethodBool != null)
+                {
+                    var result = getSizeMethodBool.Invoke(cardState, new object[] { false });
+                    if (result is int size) return size;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        /// <summary>
+        /// Get SpawnCharacterData from a CardState.
+        /// Game API: CardState.GetSpawnCharacterData() -> CharacterData?
+        /// </summary>
+        private static object GetSpawnCharacterData(object cardState, Type cardStateType)
+        {
+            try
+            {
+                var getSpawnCharMethod = cardStateType.GetMethod("GetSpawnCharacterData", Type.EmptyTypes);
+                if (getSpawnCharMethod != null)
+                {
+                    return getSpawnCharMethod.Invoke(cardState, null);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get card effect text from CardState using GetCardText methods
+        /// </summary>
+        private static string GetCardTextFromState(object cardState, Type type)
+        {
+            try
+            {
+                // Try GetCardText with no parameters first
+                var getCardTextMethod = type.GetMethod("GetCardText", Type.EmptyTypes);
+                if (getCardTextMethod != null)
+                {
+                    var desc = getCardTextMethod.Invoke(cardState, null) as string;
+                    if (!string.IsNullOrEmpty(desc)) return desc;
+                }
+
+                // If no parameterless version, try with parameters
+                var cardTextMethods = type.GetMethods().Where(m => m.Name == "GetCardText").ToArray();
+                foreach (var method in cardTextMethods)
+                {
+                    var ps = method.GetParameters();
+                    if (ps.Length == 0) continue;
+                    try
+                    {
+                        var args = new object[ps.Length];
+                        for (int i = 0; i < ps.Length; i++)
+                        {
+                            if (ps[i].ParameterType == typeof(bool))
+                                args[i] = true;
+                            else if (ps[i].ParameterType.IsValueType)
+                                args[i] = Activator.CreateInstance(ps[i].ParameterType);
+                            else
+                                args[i] = null;
+                        }
+                        var desc = method.Invoke(cardState, args) as string;
+                        if (!string.IsNullOrEmpty(desc)) return desc;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Get unit attack and health stats as a formatted string.
+        /// Game API: CardState.GetTotalAttackDamage() -> int, CardState.GetHealth() -> float
+        /// Fallback: CharacterData.GetAttackDamage() -> int, CharacterData.GetHealth() -> int
+        /// </summary>
+        public static string GetUnitStats(object cardState, Type type)
+        {
+            try
+            {
+                int attack = -1;
+                int health = -1;
+
+                // Try CardState.GetTotalAttackDamage() (game API)
+                var getAttackMethod = type.GetMethod("GetTotalAttackDamage", Type.EmptyTypes)
+                                   ?? type.GetMethod("GetAttackDamage", Type.EmptyTypes);
+                if (getAttackMethod != null)
+                {
+                    var attackResult = getAttackMethod.Invoke(cardState, null);
+                    if (attackResult is int a) attack = a;
+                }
+
+                // Try CardState.GetHealth() - returns float in game
+                var getHPMethod = type.GetMethod("GetHealth", Type.EmptyTypes)
+                               ?? type.GetMethod("GetHP", Type.EmptyTypes)
+                               ?? type.GetMethod("GetMaxHP", Type.EmptyTypes);
+                if (getHPMethod != null)
+                {
+                    var hpResult = getHPMethod.Invoke(cardState, null);
+                    if (hpResult is float f) health = (int)f;
+                    else if (hpResult is int h) health = h;
+                }
+
+                // Fallback: CharacterData.GetAttackDamage() and GetHealth()
+                if (attack < 0 || health < 0)
+                {
+                    var charData = GetSpawnCharacterData(cardState, type);
+                    if (charData != null)
+                    {
+                        var charDataType = charData.GetType();
+
+                        if (attack < 0)
+                        {
+                            var charAttackMethod = charDataType.GetMethod("GetAttackDamage", Type.EmptyTypes);
+                            if (charAttackMethod != null)
+                            {
+                                var attackResult = charAttackMethod.Invoke(charData, null);
+                                if (attackResult is int a) attack = a;
+                            }
+                        }
+
+                        if (health < 0)
+                        {
+                            var charHPMethod = charDataType.GetMethod("GetHealth", Type.EmptyTypes);
+                            if (charHPMethod != null)
+                            {
+                                var hpResult = charHPMethod.Invoke(charData, null);
+                                if (hpResult is int h) health = h;
+                                else if (hpResult is float f) health = (int)f;
+                            }
+                        }
+                    }
+                }
+
+                if (attack >= 0 || health >= 0)
+                {
+                    var stats = new List<string>();
+                    if (attack >= 0) stats.Add($"{attack} attack");
+                    if (health >= 0) stats.Add($"{health} health");
+                    return string.Join(", ", stats);
+                }
+            }
+            catch { }
             return null;
         }
 
@@ -687,7 +874,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
-        /// Extract keywords from card description text and look up their definitions
+        /// Extract keywords from card description text and look up their definitions.
+        /// Uses KeywordManager for definitions (loaded from game localization + fallbacks).
         /// </summary>
         public static void ExtractKeywordsFromDescription(string description, List<string> tooltips)
         {
@@ -696,98 +884,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
             // First, try to extract keywords from bold tags and look them up dynamically
             ExtractBoldKeywordsWithGameLookup(description, tooltips);
 
-            // Known keywords to look for as fallback (case-insensitive)
-            var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                // Trigger abilities
-                { "Slay", "Slay: Triggers after dealing a killing blow" },
-                { "Revenge", "Revenge: Triggers when this unit takes damage" },
-                { "Strike", "Strike: Triggers when this unit attacks" },
-                { "Extinguish", "Extinguish: Triggers when this unit dies" },
-                { "Summon", "Summon: Triggers when this unit is played" },
-                { "Incant", "Incant: Triggers when you play a spell on this floor" },
-                { "Resolve", "Resolve: Triggers after combat" },
-                { "Rally", "Rally: Triggers when you play a non-Morsel unit on this floor" },
-                { "Harvest", "Harvest: Triggers when any unit on this floor dies" },
-                { "Gorge", "Gorge: Triggers when this unit eats a Morsel" },
-                { "Inspire", "Inspire: Triggers when gaining Echo on this floor" },
-                { "Rejuvenate", "Rejuvenate: Triggers when healed, even at full health" },
-                { "Action", "Action: Triggers at start of this unit's turn" },
-                { "Hatch", "Hatch: Unit dies and triggers hatching ability" },
-                { "Hunger", "Hunger: Triggers when an Eaten unit is summoned" },
-                { "Armored", "Armored: Triggers when Armor is added" },
-                // Buffs
-                { "Armor", "Armor: Blocks damage before health, each point blocks one damage" },
-                { "Rage", "Rage: +2 Attack per stack, decreases every turn" },
-                { "Regen", "Regen: Restores 1 health per stack at end of turn" },
-                { "Damage Shield", "Damage Shield: Nullifies the next source of damage" },
-                { "Lifesteal", "Lifesteal: Heals for damage dealt when attacking" },
-                { "Spikes", "Spikes: Attackers take 1 damage per stack" },
-                { "Stealth", "Stealth: Not targeted in combat, loses 1 stack per turn" },
-                { "Spell Shield", "Spell Shield: Absorbs the next damage spell" },
-                { "Spellshield", "Spellshield: Absorbs the next damage spell" },
-                { "Soul", "Soul: Powers Devourer of Death's Extinguish ability" },
-                // Debuffs
-                { "Frostbite", "Frostbite: Takes 1 damage per stack at end of turn" },
-                { "Sap", "Sap: -2 Attack per stack, decreases every turn" },
-                { "Dazed", "Dazed: Cannot attack or use Action/Resolve abilities" },
-                { "Rooted", "Rooted: Prevents the next floor movement" },
-                { "Emberdrain", "Emberdrain: Lose Ember at turn start, decreases each turn" },
-                { "Heartless", "Heartless: Cannot be healed" },
-                { "Melee Weakness", "Melee Weakness: Takes extra damage from next melee attack" },
-                { "Spell Weakness", "Spell Weakness: Takes extra damage from next spell" },
-                { "Reap", "Reap: Takes 1 damage per stack of Echo after combat" },
-                // Unit effects
-                { "Quick", "Quick: Attacks before enemy units" },
-                { "Multistrike", "Multistrike: Attacks an additional time each turn" },
-                { "Sweep", "Sweep: Attacks all enemy units" },
-                { "Trample", "Trample: Excess damage hits the next enemy" },
-                { "Burnout", "Burnout: Dies when counter reaches 0" },
-                { "Endless", "Endless: Returns card to top of draw pile when killed" },
-                { "Fragile", "Fragile: Dies if it loses any health" },
-                { "Immobile", "Immobile: Cannot move between floors" },
-                { "Inert", "Inert: Cannot attack unless it has Fuel" },
-                { "Fuel", "Fuel: Allows Inert units to attack, loses 1 per turn" },
-                { "Phased", "Phased: Cannot attack or be damaged/targeted" },
-                { "Relentless", "Relentless: Attacks until floor cleared, then ascends" },
-                { "Haste", "Haste: Moves directly from first to third floor" },
-                { "Cardless", "Cardless: Not from a card, won't go to Consume pile" },
-                { "Buffet", "Buffet: Can be eaten multiple times" },
-                { "Shell", "Shell: Consumes Echo to remove stacks, triggers Hatch when depleted" },
-                { "Silence", "Silence: Disables triggered abilities" },
-                { "Silenced", "Silenced: Triggered abilities are disabled" },
-                { "Purify", "Purify: Removes all debuffs at end of turn" },
-                { "Enchant", "Enchant: Other friendly units on floor gain a bonus" },
-                { "Shard", "Shard: Powers Solgard the Martyr's abilities" },
-                { "Eaten", "Eaten: Will be eaten by front unit after combat" },
-                // Card effects
-                { "Consume", "Consume: Can only be played once per battle" },
-                { "Frozen", "Frozen: Not discarded at end of turn" },
-                { "Permafrost", "Permafrost: Gains Frozen when drawn" },
-                { "Purge", "Purge: Removed from deck for the rest of the run" },
-                { "Intrinsic", "Intrinsic: Starts in your opening hand" },
-                { "Holdover", "Holdover: Returns to hand at end of turn" },
-                { "Etch", "Etch: Permanently upgrade this card when consumed" },
-                { "Offering", "Offering: Played automatically if discarded" },
-                { "Reserve", "Reserve: Triggers if card remains in hand at end of turn" },
-                { "Pyrebound", "Pyrebound: Only playable in Pyre Room or floor below" },
-                { "Piercing", "Piercing: Damage ignores Armor and shields" },
-                { "Magic Power", "Magic Power: Boosts spell damage and healing" },
-                { "Attuned", "Attuned: Multiplies Magic Power effects by 5" },
-                { "Infused", "Infused: Floor gains 1 Echo when played" },
-                { "Extract", "Extract: Removes charged echoes when played" },
-                { "Spellchain", "Spellchain: Creates a copy with +1 cost and Purge" },
-                { "X Cost", "X Cost: Spends all remaining Ember, effect scales with amount" },
-                { "Unplayable", "Unplayable: This card cannot be played" },
-                // Unit actions
-                { "Ascend", "Ascend: Move up a floor to the back" },
-                { "Descend", "Descend: Move down a floor to the back" },
-                { "Reform", "Reform: Return a defeated friendly unit to hand" },
-                { "Sacrifice", "Sacrifice: Kill a friendly unit to play this card" },
-                { "Cultivate", "Cultivate: Increase stats of lowest health friendly unit" },
-                // Enemy effects
-                { "Recover", "Recover: Restores health to friendly units after combat" }
-            };
+            // Use KeywordManager as the single source of truth for keyword definitions
+            var knownKeywords = Core.KeywordManager.GetKeywords();
 
             foreach (var keyword in knownKeywords)
             {

@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Help;
 using System;
 using System.Reflection;
 
@@ -46,6 +47,7 @@ namespace MonsterTrainAccessibility.Patches.Screens
             try
             {
                 MonsterTrainAccessibility.LogInfo("Dragon's Hoard screen entered");
+                ScreenStateTracker.SetScreen(Help.GameScreen.DragonsHoard);
 
                 // Try to get gold count
                 int gold = GetHoardGold(__instance);

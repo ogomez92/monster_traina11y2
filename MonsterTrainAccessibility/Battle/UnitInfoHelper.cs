@@ -120,6 +120,42 @@ namespace MonsterTrainAccessibility.Battle
         }
 
         /// <summary>
+        /// Get equipment names attached to a unit as a comma-separated string.
+        /// Game API: CharacterState.GetEquipment() -> List&lt;CardState&gt;
+        /// </summary>
+        public static string GetUnitEquipment(object characterState)
+        {
+            try
+            {
+                var type = characterState.GetType();
+                var getEquipMethod = type.GetMethod("GetEquipment", Type.EmptyTypes);
+                if (getEquipMethod == null) return null;
+
+                var equipList = getEquipMethod.Invoke(characterState, null) as System.Collections.IList;
+                if (equipList == null || equipList.Count == 0) return null;
+
+                var names = new List<string>();
+                foreach (var equipCard in equipList)
+                {
+                    if (equipCard == null) continue;
+                    var getTitle = equipCard.GetType().GetMethod("GetTitle", Type.EmptyTypes);
+                    if (getTitle == null) continue;
+                    var title = getTitle.Invoke(equipCard, null) as string;
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        names.Add(StripRichTextTags(title));
+                    }
+                }
+                return names.Count > 0 ? string.Join(", ", names) : null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting equipment: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Get status effects on a unit as a readable string
         /// </summary>
         public static string GetUnitStatusEffects(object characterState)
@@ -357,6 +393,13 @@ namespace MonsterTrainAccessibility.Battle
                     sb.Append($". Status: {statusEffects}");
                 }
 
+                // Get equipment
+                string equipment = GetUnitEquipment(unit);
+                if (!string.IsNullOrEmpty(equipment))
+                {
+                    sb.Append($". Equipped: {equipment}");
+                }
+
                 // Get intent (for bosses or units with visible intent)
                 string intent = GetUnitIntent(unit);
                 if (!string.IsNullOrEmpty(intent))
@@ -396,6 +439,12 @@ namespace MonsterTrainAccessibility.Battle
                 if (!string.IsNullOrEmpty(statusEffects))
                 {
                     sb.Append($" ({statusEffects})");
+                }
+
+                string equipment = GetUnitEquipment(characterState);
+                if (!string.IsNullOrEmpty(equipment))
+                {
+                    sb.Append($", equipped {equipment}");
                 }
 
                 bool isEnemy = IsEnemyUnit(characterState, cache);

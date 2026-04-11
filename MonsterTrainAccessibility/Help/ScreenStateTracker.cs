@@ -38,7 +38,10 @@ namespace MonsterTrainAccessibility.Help
         SoulSaviorMap,
         SoulProgression,
         ChallengeProgress,
-        CharacterDialogue
+        CharacterDialogue,
+        DragonsHoard,
+        ElixirDraft,
+        TrainCosmetics
     }
 
     /// <summary>

@@ -47,6 +47,7 @@ namespace MonsterTrainAccessibility.Battle
                     int cost = GetCardCost(card);
                     string cardType = GetCardType(card);
                     string clanName = GetCardClan(card);
+                    string rarity = GetCardRarity(card);
                     string description = GetCardDescription(card);
 
                     string playable = (currentEnergy >= 0 && cost > currentEnergy) ? ", unplayable" : "";
@@ -58,10 +59,14 @@ namespace MonsterTrainAccessibility.Battle
                     }
                     else
                     {
-                        // Normal and Verbose include type, clan, and description
-                        string typeStr = !string.IsNullOrEmpty(cardType) ? $" ({cardType})" : "";
-                        string clanStr = !string.IsNullOrEmpty(clanName) ? $", {clanName}" : "";
-                        sb.Append($"{i + 1}: {name}{typeStr}{clanStr}, {cost} ember{playable}. ");
+                        // Normal and Verbose: "Name, Rare Hellhorned Unit, 2 ember"
+                        var typeInfoParts = new List<string>();
+                        if (!string.IsNullOrEmpty(rarity)) typeInfoParts.Add(rarity);
+                        if (!string.IsNullOrEmpty(clanName)) typeInfoParts.Add(clanName);
+                        if (!string.IsNullOrEmpty(cardType)) typeInfoParts.Add(cardType);
+                        string typeInfo = typeInfoParts.Count > 0 ? $", {string.Join(" ", typeInfoParts)}" : "";
+
+                        sb.Append($"{i + 1}: {name}{typeInfo}, {cost} ember{playable}. ");
 
                         if (!string.IsNullOrEmpty(description))
                         {
@@ -319,8 +324,6 @@ namespace MonsterTrainAccessibility.Battle
             try
             {
                 var type = cardState.GetType();
-
-                // Get CardData from CardState
                 var getCardDataMethod = type.GetMethod("GetCardDataRead", Type.EmptyTypes)
                                      ?? type.GetMethod("GetCardData", Type.EmptyTypes);
                 if (getCardDataMethod == null) return null;
@@ -328,39 +331,26 @@ namespace MonsterTrainAccessibility.Battle
                 var cardData = getCardDataMethod.Invoke(cardState, null);
                 if (cardData == null) return null;
 
-                var cardDataType = cardData.GetType();
+                return Screens.Readers.CardTextReader.GetClanFromCardData(cardData, cardData.GetType());
+            }
+            catch { }
+            return null;
+        }
 
-                // Get linkedClass field from CardData
-                var linkedClassField = cardDataType.GetField("linkedClass",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (linkedClassField == null) return null;
-
-                var linkedClass = linkedClassField.GetValue(cardData);
-                if (linkedClass == null) return null;
-
-                var classType = linkedClass.GetType();
-
-                // Try GetTitle() for localized name
-                var getTitleMethod = classType.GetMethod("GetTitle", Type.EmptyTypes);
-                if (getTitleMethod != null)
-                {
-                    var clanName = getTitleMethod.Invoke(linkedClass, null) as string;
-                    if (!string.IsNullOrEmpty(clanName)) return clanName;
-                }
-
-                // Fallback to GetName()
-                var getNameMethod = classType.GetMethod("GetName", Type.EmptyTypes);
-                if (getNameMethod != null)
-                {
-                    return getNameMethod.Invoke(linkedClass, null) as string;
-                }
+        public string GetCardRarity(object cardState)
+        {
+            try
+            {
+                // CardState.GetRarity() exists directly in the game API
+                return Screens.Readers.CardTextReader.GetRarityString(cardState, cardState.GetType());
             }
             catch { }
             return null;
         }
 
         /// <summary>
-        /// Extract keyword definitions from a card's description
+        /// Extract keyword definitions from a card's description.
+        /// Uses KeywordManager for definitions (loaded from game localization + fallbacks).
         /// </summary>
         public string GetCardKeywords(object cardState, string description)
         {
@@ -369,99 +359,7 @@ namespace MonsterTrainAccessibility.Battle
             try
             {
                 var keywords = new List<string>();
-
-                // Known keywords with their definitions
-                var knownKeywords = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    // Trigger abilities
-                    { "Slay", "Slay: Triggers after dealing a killing blow" },
-                    { "Revenge", "Revenge: Triggers when damaged" },
-                    { "Strike", "Strike: Triggers when attacking" },
-                    { "Extinguish", "Extinguish: Triggers when dying" },
-                    { "Summon", "Summon: Triggers when played" },
-                    { "Incant", "Incant: Triggers when spell played on floor" },
-                    { "Resolve", "Resolve: Triggers after combat" },
-                    { "Rally", "Rally: Triggers when unit played on floor" },
-                    { "Harvest", "Harvest: Triggers when unit dies on floor" },
-                    { "Gorge", "Gorge: Triggers when eating a Morsel" },
-                    { "Inspire", "Inspire: Triggers when gaining Echo" },
-                    { "Rejuvenate", "Rejuvenate: Triggers when healed" },
-                    { "Action", "Action: Triggers at turn start" },
-                    { "Hatch", "Hatch: Triggers on death" },
-                    { "Hunger", "Hunger: Triggers when Eaten unit summoned" },
-                    { "Armored", "Armored: Triggers when Armor added" },
-                    // Buffs
-                    { "Armor", "Armor: Blocks damage" },
-                    { "Rage", "Rage: +2 Attack per stack" },
-                    { "Regen", "Regen: Heals each turn" },
-                    { "Damage Shield", "Damage Shield: Blocks next damage" },
-                    { "Lifesteal", "Lifesteal: Heals for damage dealt" },
-                    { "Spikes", "Spikes: Damages attackers" },
-                    { "Stealth", "Stealth: Not targeted in combat" },
-                    { "Spell Shield", "Spell Shield: Absorbs next spell" },
-                    { "Spellshield", "Spellshield: Absorbs next spell" },
-                    { "Soul", "Soul: Powers Extinguish ability" },
-                    // Debuffs
-                    { "Frostbite", "Frostbite: Damages at end of turn" },
-                    { "Sap", "Sap: -2 Attack per stack" },
-                    { "Dazed", "Dazed: Cannot attack" },
-                    { "Rooted", "Rooted: Cannot move floors" },
-                    { "Emberdrain", "Emberdrain: Lose Ember at turn start" },
-                    { "Heartless", "Heartless: Cannot be healed" },
-                    { "Melee Weakness", "Melee Weakness: Extra melee damage" },
-                    { "Spell Weakness", "Spell Weakness: Extra spell damage" },
-                    { "Reap", "Reap: Damages after combat" },
-                    // Unit effects
-                    { "Quick", "Quick: Attacks first" },
-                    { "Multistrike", "Multistrike: Extra attack" },
-                    { "Sweep", "Sweep: Attacks all enemies" },
-                    { "Trample", "Trample: Excess damage continues" },
-                    { "Burnout", "Burnout: Dies when counter reaches 0" },
-                    { "Endless", "Endless: Returns to draw pile" },
-                    { "Fragile", "Fragile: Dies if damaged" },
-                    { "Immobile", "Immobile: Cannot move" },
-                    { "Inert", "Inert: Needs Fuel to attack" },
-                    { "Fuel", "Fuel: Allows Inert to attack" },
-                    { "Phased", "Phased: Cannot be targeted" },
-                    { "Relentless", "Relentless: Attacks until floor cleared" },
-                    { "Haste", "Haste: Skips to third floor" },
-                    { "Cardless", "Cardless: Not from a card" },
-                    { "Buffet", "Buffet: Can be eaten multiple times" },
-                    { "Shell", "Shell: Uses Echo, triggers Hatch" },
-                    { "Silence", "Silence: Disables triggers" },
-                    { "Silenced", "Silenced: Triggers disabled" },
-                    { "Purify", "Purify: Removes debuffs" },
-                    { "Enchant", "Enchant: Buffs floor allies" },
-                    { "Shard", "Shard: Powers Solgard" },
-                    { "Eaten", "Eaten: Will be eaten" },
-                    // Card effects
-                    { "Consume", "Consume: One use per battle" },
-                    { "Frozen", "Frozen: Not discarded" },
-                    { "Permafrost", "Permafrost: Gains Frozen" },
-                    { "Purge", "Purge: Removed from deck" },
-                    { "Intrinsic", "Intrinsic: Starts in hand" },
-                    { "Holdover", "Holdover: Returns to hand" },
-                    { "Etch", "Etch: Upgrades when consumed" },
-                    { "Offering", "Offering: Plays if discarded" },
-                    { "Reserve", "Reserve: Triggers if kept" },
-                    { "Pyrebound", "Pyrebound: Pyre room only" },
-                    { "Piercing", "Piercing: Ignores Armor" },
-                    { "Magic Power", "Magic Power: Boosts spells" },
-                    { "Attuned", "Attuned: 5x Magic Power" },
-                    { "Infused", "Infused: Adds Echo" },
-                    { "Extract", "Extract: Uses charged echoes" },
-                    { "Spellchain", "Spellchain: Creates copy" },
-                    { "X Cost", "X Cost: Uses all Ember" },
-                    { "Unplayable", "Unplayable: Cannot be played" },
-                    // Unit actions
-                    { "Ascend", "Ascend: Move up" },
-                    { "Descend", "Descend: Move down" },
-                    { "Reform", "Reform: Returns unit to hand" },
-                    { "Sacrifice", "Sacrifice: Kill unit to play" },
-                    { "Cultivate", "Cultivate: Buff weakest unit" },
-                    // Enemy effects
-                    { "Recover", "Recover: Heals after combat" }
-                };
+                var knownKeywords = KeywordManager.GetKeywords();
 
                 foreach (var keyword in knownKeywords)
                 {

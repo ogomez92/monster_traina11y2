@@ -1,7 +1,6 @@
 using MonsterTrainAccessibility.Utilities;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 using UnityEngine;
@@ -36,23 +35,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     return null;
 
                 var relicType = relicInfoUI.GetType();
-                MonsterTrainAccessibility.LogInfo($"Found RelicInfoUI, extracting relic data...");
-
-                // Log all fields first to see what's available
-                var sbFields = new StringBuilder();
-                sbFields.AppendLine($"=== Fields on RelicInfoUI ===");
-                foreach (var field in relicType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-                {
-                    try
-                    {
-                        var value = field.GetValue(relicInfoUI);
-                        string valueStr = value?.ToString() ?? "null";
-                        if (valueStr.Length > 80) valueStr = valueStr.Substring(0, 80) + "...";
-                        sbFields.AppendLine($"  {field.FieldType.Name} {field.Name} = {valueStr}");
-                    }
-                    catch { }
-                }
-                MonsterTrainAccessibility.LogInfo(sbFields.ToString());
 
                 // Try to get RelicData from the backing field (C# auto-property)
                 string relicName = null;
@@ -66,19 +48,12 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     if (relicData != null)
                     {
                         var dataType = relicData.GetType();
-                        MonsterTrainAccessibility.LogInfo($"Found RelicData: {dataType.Name}");
-
-                        // Log available methods to find description
-                        var methods = dataType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
-                        var descMethods = methods.Where(m => m.Name.ToLower().Contains("desc") || m.Name.ToLower().Contains("effect") || m.Name.ToLower().Contains("text")).ToList();
-                        MonsterTrainAccessibility.LogInfo($"Potential description methods: {string.Join(", ", descMethods.Select(m => m.Name))}");
 
                         // Try GetName()
                         var getNameMethod = dataType.GetMethod("GetName", BindingFlags.Public | BindingFlags.Instance);
                         if (getNameMethod != null && getNameMethod.GetParameters().Length == 0)
                         {
                             relicName = getNameMethod.Invoke(relicData, null) as string;
-                            MonsterTrainAccessibility.LogInfo($"GetName() returned: '{relicName}'");
                         }
 
                         // Try various description method names
@@ -91,7 +66,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                 relicDescription = method.Invoke(relicData, null) as string;
                                 if (!string.IsNullOrEmpty(relicDescription))
                                 {
-                                    MonsterTrainAccessibility.LogInfo($"{methodName}() returned: '{relicDescription}'");
                                     break;
                                 }
                             }
@@ -107,7 +81,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                 if (!string.IsNullOrEmpty(key))
                                 {
                                     relicDescription = LocalizationHelper.TryLocalize(key);
-                                    MonsterTrainAccessibility.LogInfo($"GetDescriptionKey() -> Localized: '{relicDescription}'");
                                 }
                             }
                         }
@@ -117,7 +90,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 // If description looks like a localization key, try getting it from RelicState instead
                 if (!string.IsNullOrEmpty(relicDescription) && relicDescription.Contains("_descriptionKey"))
                 {
-                    MonsterTrainAccessibility.LogInfo("Description is a loc key, trying RelicState...");
                     relicDescription = null; // Clear it, will try relicState
                 }
 
@@ -132,11 +104,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         {
                             var stateType = relicState.GetType();
 
-                            // Log available methods on RelicState
-                            var stateMethods = stateType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
-                            var descStateMethods = stateMethods.Where(m => m.Name.ToLower().Contains("desc") || m.Name.ToLower().Contains("effect") || m.Name.ToLower().Contains("text")).ToList();
-                            MonsterTrainAccessibility.LogInfo($"RelicState methods: {string.Join(", ", descStateMethods.Select(m => m.Name))}");
-
                             // Try GetDescription on RelicState
                             foreach (var methodName in new[] { "GetDescription", "GetEffectText", "GetDescriptionText" })
                             {
@@ -145,7 +112,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                 {
                                     var parameters = method.GetParameters();
                                     var paramCount = parameters.Length;
-                                    MonsterTrainAccessibility.LogInfo($"Found {methodName} with {paramCount} params");
 
                                     try
                                     {
@@ -157,8 +123,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                         {
                                             // Try calling with null or default value
                                             var paramType = parameters[0].ParameterType;
-                                            MonsterTrainAccessibility.LogInfo($"  Param type: {paramType.Name}");
-
                                             object arg = null;
                                             if (paramType.IsValueType)
                                             {
@@ -167,7 +131,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                             relicDescription = method.Invoke(relicState, new[] { arg }) as string;
                                         }
 
-                                        MonsterTrainAccessibility.LogInfo($"RelicState.{methodName}() returned: '{relicDescription ?? "null"}'");
                                         if (!string.IsNullOrEmpty(relicDescription) && !relicDescription.Contains("_descriptionKey"))
                                         {
                                             break;
@@ -208,12 +171,9 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         }
                     }
 
-                    string result = sb.ToString();
-                    MonsterTrainAccessibility.LogInfo($"Relic text: {result}");
-                    return result;
+                    return sb.ToString();
                 }
 
-                MonsterTrainAccessibility.LogInfo("Could not extract relic info");
                 return null;
             }
             catch (Exception ex)

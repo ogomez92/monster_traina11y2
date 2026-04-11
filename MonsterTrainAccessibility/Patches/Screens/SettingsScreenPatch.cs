@@ -1,4 +1,6 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Help;
+using MonsterTrainAccessibility.Utilities;
 using System;
 
 namespace MonsterTrainAccessibility.Patches.Screens
@@ -47,7 +49,10 @@ namespace MonsterTrainAccessibility.Patches.Screens
         {
             try
             {
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Settings. Press Tab to switch between tabs.");
+                ScreenStateTracker.SetScreen(Help.GameScreen.Settings);
+                string settingsName = LocalizationHelper.Localize("Settings") ?? "Settings";
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen(
+                    $"{settingsName}. Use left and right bracket to change tabs. Press F1 for help.");
             }
             catch (Exception ex)
             {

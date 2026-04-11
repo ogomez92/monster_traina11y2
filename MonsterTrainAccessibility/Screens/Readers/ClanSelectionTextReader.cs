@@ -298,6 +298,177 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
+        /// Get text for the run setup clan selection tiles (RunSetupClanSelectionItemUI).
+        /// These tiles appear on the Run Setup screen and expose level, XP, locked state,
+        /// and unlock condition via ClassOptionData + SaveManager.
+        /// </summary>
+        public static string GetRunSetupClanItemText(GameObject go)
+        {
+            try
+            {
+                // Find the RunSetupClanSelectionItemUI component on this object or a parent.
+                Component itemUi = null;
+                Transform current = go.transform;
+                while (current != null && itemUi == null)
+                {
+                    foreach (var component in current.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        if (component.GetType().Name == "RunSetupClanSelectionItemUI")
+                        {
+                            itemUi = component;
+                            break;
+                        }
+                    }
+                    current = current.parent;
+                }
+
+                if (itemUi == null) return null;
+
+                var itemType = itemUi.GetType();
+
+                // ClassOptionData is a nullable-wrapped sealed class ("public ClanOptionData? { get; }")
+                var classOptionProp = itemType.GetProperty("ClassOptionData",
+                    BindingFlags.Public | BindingFlags.Instance);
+                object classOption = classOptionProp?.GetValue(itemUi);
+                if (classOption == null)
+                {
+                    // Data isn't set yet — fall back so the generic path takes over.
+                    return null;
+                }
+
+                var optionType = classOption.GetType();
+
+                // IsRandom / randomId
+                bool isRandom = false;
+                var isRandomProp = optionType.GetProperty("IsRandom", BindingFlags.Public | BindingFlags.Instance);
+                if (isRandomProp != null && isRandomProp.GetValue(classOption) is bool r) isRandom = r;
+
+                string randomId = null;
+                var randomIdField = optionType.GetField("randomId", BindingFlags.Public | BindingFlags.Instance);
+                if (randomIdField != null) randomId = randomIdField.GetValue(classOption) as string;
+
+                // isLocked (struct field) vs IsLocked (item property — lockedRoot.activeSelf)
+                bool isLocked = false;
+                var isLockedField = optionType.GetField("isLocked", BindingFlags.Public | BindingFlags.Instance);
+                if (isLockedField != null && isLockedField.GetValue(classOption) is bool l1) isLocked = l1;
+
+                if (!isLocked)
+                {
+                    var isLockedProp = itemType.GetProperty("IsLocked", BindingFlags.Public | BindingFlags.Instance);
+                    if (isLockedProp != null && isLockedProp.GetValue(itemUi) is bool l2) isLocked = l2;
+                }
+
+                // Handle random tiles first — no clanData to inspect
+                if (isRandom)
+                {
+                    string label;
+                    switch (randomId)
+                    {
+                        case "randomLegacyEra": label = "Random Legacy Era clan"; break;
+                        case "randomYoungEra":  label = "Random Young Era clan"; break;
+                        default:                label = "Random clan"; break;
+                    }
+                    return isLocked ? $"{label}, Locked" : label;
+                }
+
+                // Non-random tile: pull ClassData and read its name, level, XP, and (if locked) unlock condition.
+                object clanData = null;
+                var clanDataField = optionType.GetField("clanData", BindingFlags.Public | BindingFlags.Instance);
+                if (clanDataField != null) clanData = clanDataField.GetValue(classOption);
+
+                if (clanData == null)
+                {
+                    return isLocked ? "Locked clan" : null;
+                }
+
+                var clanType = clanData.GetType();
+
+                // Localized title
+                string clanTitle = null;
+                var getTitle = clanType.GetMethod("GetTitle", Type.EmptyTypes);
+                if (getTitle != null) clanTitle = getTitle.Invoke(clanData, null) as string;
+                if (string.IsNullOrEmpty(clanTitle)) clanTitle = "Unknown clan";
+                clanTitle = TextUtilities.StripRichTextTags(clanTitle);
+
+                // Class ID for SaveManager lookups
+                string classId = null;
+                var getId = clanType.GetMethod("GetID", Type.EmptyTypes);
+                if (getId != null) classId = getId.Invoke(clanData, null) as string;
+
+                var sb = new StringBuilder();
+                sb.Append(clanTitle);
+
+                if (isLocked)
+                {
+                    sb.Append(", Locked");
+
+                    // Try to read the full unlock condition string via SaveManager.
+                    var saveManager = ReflectionHelper.FindManager("SaveManager");
+                    if (saveManager != null)
+                    {
+                        var getUnlockProgress = clanType.GetMethod(
+                            "GetFullClassUnlockProgressString",
+                            new[] { saveManager.GetType() });
+                        if (getUnlockProgress != null)
+                        {
+                            try
+                            {
+                                var progress = getUnlockProgress.Invoke(clanData, new[] { saveManager }) as string;
+                                if (!string.IsNullOrEmpty(progress))
+                                {
+                                    sb.Append(": ");
+                                    sb.Append(TextUtilities.StripRichTextTags(progress));
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                else if (!string.IsNullOrEmpty(classId))
+                {
+                    // Unlocked: report level + XP from SaveManager
+                    var saveManager = ReflectionHelper.FindManager("SaveManager");
+                    if (saveManager != null)
+                    {
+                        int level = InvokeIntMethod(saveManager, "GetClassLevelInMetagame", classId);
+                        int xp = InvokeIntMethod(saveManager, "GetClassXP", classId);
+                        if (level >= 0)
+                        {
+                            sb.Append($", Level {level}");
+                        }
+                        if (xp >= 0)
+                        {
+                            sb.Append($", {xp} XP");
+                        }
+                    }
+                }
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting run setup clan item text: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static int InvokeIntMethod(object target, string methodName, string arg)
+        {
+            try
+            {
+                var m = target.GetType().GetMethod(methodName, new[] { typeof(string) });
+                if (m != null)
+                {
+                    var result = m.Invoke(target, new object[] { arg });
+                    if (result is int i) return i;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        /// <summary>
         /// Get text for champion choice buttons on the clan selection screen
         /// </summary>
         public static string GetChampionChoiceText(GameObject go)

@@ -45,17 +45,24 @@ namespace MonsterTrainAccessibility.Battle
                         }
                         else
                         {
-                            var descriptions = new List<string>();
+                            var enemyDescriptions = new List<string>();
+                            var friendlyDescriptions = new List<string>();
                             foreach (var unit in units)
                             {
-                                string name = UnitInfoHelper.GetUnitName(unit, _cache);
-                                int hp = UnitInfoHelper.GetUnitHP(unit, _cache);
-                                int attack = UnitInfoHelper.GetUnitAttack(unit, _cache);
-                                bool isEnemy = UnitInfoHelper.IsEnemyUnit(unit, _cache);
-                                string prefix = isEnemy ? "Enemy" : "";
-                                descriptions.Add($"{prefix} {name} {attack}/{hp}");
+                                string desc = FormatUnitForFloorListing(unit);
+                                if (UnitInfoHelper.IsEnemyUnit(unit, _cache))
+                                    enemyDescriptions.Add(desc);
+                                else
+                                    friendlyDescriptions.Add(desc);
                             }
-                            output?.Queue($"{floorName}: {string.Join(", ", descriptions)}");
+
+                            var parts = new List<string>();
+                            if (enemyDescriptions.Count > 0)
+                                parts.Add($"Enemies: {string.Join(", ", enemyDescriptions)}");
+                            if (friendlyDescriptions.Count > 0)
+                                parts.Add($"Your units: {string.Join(", ", friendlyDescriptions)}");
+
+                            output?.Queue($"{floorName}: {string.Join(". ", parts)}");
                         }
                     }
                 }
@@ -73,6 +80,21 @@ namespace MonsterTrainAccessibility.Battle
                 MonsterTrainAccessibility.LogError($"Error announcing floors: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Could not read floors", false);
             }
+        }
+
+        /// <summary>
+        /// Format a single unit for inline floor listings. Includes name, stats, and
+        /// equipment if any. Used by AnnounceAllFloors / GetFloorSummary / GetAllEnemies.
+        /// </summary>
+        private string FormatUnitForFloorListing(object unit)
+        {
+            string name = UnitInfoHelper.GetUnitName(unit, _cache);
+            int hp = UnitInfoHelper.GetUnitHP(unit, _cache);
+            int attack = UnitInfoHelper.GetUnitAttack(unit, _cache);
+            string equipment = UnitInfoHelper.GetUnitEquipment(unit);
+            return string.IsNullOrEmpty(equipment)
+                ? $"{name} {attack}/{hp}"
+                : $"{name} {attack}/{hp} equipped {equipment}";
         }
 
         /// <summary>
@@ -197,29 +219,22 @@ namespace MonsterTrainAccessibility.Battle
 
                 foreach (var unit in units)
                 {
-                    string name = UnitInfoHelper.GetUnitName(unit, _cache);
-                    int hp = UnitInfoHelper.GetUnitHP(unit, _cache);
-                    int attack = UnitInfoHelper.GetUnitAttack(unit, _cache);
-                    string description = $"{name} {attack}/{hp}";
-
+                    string description = FormatUnitForFloorListing(unit);
                     if (UnitInfoHelper.IsEnemyUnit(unit, _cache))
-                    {
                         enemyUnits.Add(description);
-                    }
                     else
-                    {
                         friendlyUnits.Add(description);
-                    }
                 }
 
+                // Enemies first - they're usually the priority for decision-making
                 var parts = new List<string>();
-                if (friendlyUnits.Count > 0)
-                {
-                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
-                }
                 if (enemyUnits.Count > 0)
                 {
                     parts.Add($"Enemies: {string.Join(", ", enemyUnits)}");
+                }
+                if (friendlyUnits.Count > 0)
+                {
+                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
                 }
 
                 return string.Join(". ", parts);
@@ -251,10 +266,7 @@ namespace MonsterTrainAccessibility.Battle
                     {
                         if (UnitInfoHelper.IsEnemyUnit(unit, _cache))
                         {
-                            string name = UnitInfoHelper.GetUnitName(unit, _cache);
-                            int hp = UnitInfoHelper.GetUnitHP(unit, _cache);
-                            int attack = UnitInfoHelper.GetUnitAttack(unit, _cache);
-                            enemies.Add($"{name} {attack}/{hp} on floor {floorNumber}");
+                            enemies.Add($"{FormatUnitForFloorListing(unit)} on floor {floorNumber}");
                         }
                     }
                 }
@@ -286,10 +298,7 @@ namespace MonsterTrainAccessibility.Battle
                     {
                         if (!UnitInfoHelper.IsEnemyUnit(unit, _cache))
                         {
-                            string name = UnitInfoHelper.GetUnitName(unit, _cache);
-                            int hp = UnitInfoHelper.GetUnitHP(unit, _cache);
-                            int attack = UnitInfoHelper.GetUnitAttack(unit, _cache);
-                            friendlies.Add($"{name} {attack}/{hp} on floor {floorNumber}");
+                            friendlies.Add($"{FormatUnitForFloorListing(unit)} on floor {floorNumber}");
                         }
                     }
                 }
@@ -307,8 +316,8 @@ namespace MonsterTrainAccessibility.Battle
         public List<string> GetAllUnits()
         {
             var allUnits = new List<string>();
-            allUnits.AddRange(GetAllFriendlyUnits());
             allUnits.AddRange(GetAllEnemies());
+            allUnits.AddRange(GetAllFriendlyUnits());
             return allUnits;
         }
 

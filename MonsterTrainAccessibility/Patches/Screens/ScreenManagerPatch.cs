@@ -52,8 +52,8 @@ namespace MonsterTrainAccessibility.Patches.Screens
 
                 MonsterTrainAccessibility.LogInfo($"Screen transition: {screenName}");
 
-                // Don't announce raw screen transitions - let individual screen patches handle announcements
-                // This just logs for debugging
+                // Ensure handlers are alive on every screen transition
+                MonsterTrainAccessibility.EnsureHandlers();
             }
             catch (Exception ex)
             {

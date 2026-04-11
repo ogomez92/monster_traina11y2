@@ -39,6 +39,9 @@ namespace MonsterTrainAccessibility.Utilities
                     var result = _localizeMethod.Invoke(null, args) as string;
                     if (!string.IsNullOrEmpty(result))
                     {
+                        // Game returns "KEY>>Some_Key<<" as a sentinel for missing entries.
+                        if (result.StartsWith("KEY>>") && result.EndsWith("<<"))
+                            return null;
                         return result;
                     }
                 }

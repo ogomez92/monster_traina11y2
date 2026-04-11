@@ -128,8 +128,9 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 _lastDamageKey = damageKey;
                 _lastDamageTime = currentTime;
 
-                // Announce damage
-                MonsterTrainAccessibility.ScreenReader?.Queue($"{targetName} takes {damage} damage");
+                // Announcement is handled authoritatively by UpdateHpPatch, which fires
+                // after HP is actually updated and includes floor + HP remaining. This
+                // patch only runs to populate RecentlyDamagedTargets for death correlation.
 
                 // Record this target as recently damaged for death correlation
                 RecentlyDamagedTargets[targetHash] = currentTime;

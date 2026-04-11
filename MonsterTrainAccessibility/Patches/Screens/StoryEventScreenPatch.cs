@@ -62,7 +62,10 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 if (screen == null) return;
                 var screenType = screen.GetType();
 
-                // Try to get the story content from the storyContent field
+                string eventName = null;
+                string eventText = null;
+
+                // Get event name from storyContent (StoryEventData)
                 var storyContentField = screenType.GetField("storyContent", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (storyContentField != null)
                 {
@@ -70,43 +73,63 @@ namespace MonsterTrainAccessibility.Patches.Screens
                     if (storyContent != null)
                     {
                         var contentType = storyContent.GetType();
-
-                        // Try to get event name
-                        string eventName = null;
                         var getNameMethod = contentType.GetMethod("GetName") ?? contentType.GetMethod("GetTitle");
                         if (getNameMethod != null)
                         {
                             eventName = getNameMethod.Invoke(storyContent, null) as string;
                         }
+                    }
+                }
 
-                        // Fall back to KnotName field or property
-                        if (string.IsNullOrEmpty(eventName))
+                // Read the actual story body text from contentLabel (TextMeshProUGUI)
+                var contentLabelField = screenType.GetField("contentLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (contentLabelField != null)
+                {
+                    var contentLabel = contentLabelField.GetValue(screen);
+                    if (contentLabel != null)
+                    {
+                        var textProp = contentLabel.GetType().GetProperty("text");
+                        if (textProp != null)
                         {
-                            var knotNameField = contentType.GetField("KnotName");
-                            if (knotNameField != null)
+                            eventText = textProp.GetValue(contentLabel) as string;
+                            if (!string.IsNullOrEmpty(eventText))
                             {
-                                eventName = knotNameField.GetValue(storyContent) as string;
+                                eventText = Utilities.TextUtilities.StripRichTextTags(eventText).Trim();
                             }
-                            else
-                            {
-                                var knotNameProp = contentType.GetProperty("KnotName");
-                                if (knotNameProp != null)
-                                {
-                                    eventName = knotNameProp.GetValue(storyContent) as string;
-                                }
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(eventName))
-                        {
-                            MonsterTrainAccessibility.ScreenReader?.Speak($"Random event: {eventName}. Press F1 for help.");
-                            return;
                         }
                     }
                 }
 
-                // Generic announcement
-                MonsterTrainAccessibility.ScreenReader?.Speak("Random event. Listen for choices. Press F1 for help.");
+                // Also try currentTextContent StringBuilder
+                if (string.IsNullOrEmpty(eventText))
+                {
+                    var textContentField = screenType.GetField("currentTextContent", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (textContentField != null)
+                    {
+                        var textContent = textContentField.GetValue(screen);
+                        if (textContent != null)
+                        {
+                            eventText = Utilities.TextUtilities.StripRichTextTags(textContent.ToString()).Trim();
+                        }
+                    }
+                }
+
+                // Build announcement
+                var announcement = new System.Text.StringBuilder();
+                announcement.Append("Event");
+                if (!string.IsNullOrEmpty(eventName))
+                {
+                    announcement.Append($": {eventName}");
+                }
+                announcement.Append(". ");
+                if (!string.IsNullOrEmpty(eventText))
+                {
+                    announcement.Append(eventText);
+                    announcement.Append(". ");
+                }
+                announcement.Append("Press F1 for help.");
+
+                MonsterTrainAccessibility.ScreenReader?.Speak(announcement.ToString());
             }
             catch (Exception ex)
             {

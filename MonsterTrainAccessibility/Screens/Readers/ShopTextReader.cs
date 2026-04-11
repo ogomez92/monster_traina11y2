@@ -50,8 +50,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var buyType = buyButton.GetType();
                     var buyFields = buyType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-                    MonsterTrainAccessibility.LogInfo($"BuyButton fields: {string.Join(", ", buyFields.Select(f => f.Name))}");
-
                     // Look for good/service reference
                     foreach (var field in buyFields)
                     {
@@ -62,7 +60,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         if (typeName.Contains("Good") || typeName.Contains("Service") ||
                             typeName.Contains("Card") || typeName.Contains("Relic"))
                         {
-                            MonsterTrainAccessibility.LogInfo($"Found {field.Name}: {typeName}");
                             string info = ExtractShopItemInfo(value);
                             if (!string.IsNullOrEmpty(info))
                             {
@@ -248,8 +245,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 var uiType = goodUI.GetType();
                 var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-                MonsterTrainAccessibility.LogInfo($"MerchantGoodDetailsUI fields: {string.Join(", ", fields.Select(f => f.Name).Take(15))}");
-
                 // Look for rewardUI field - this contains the actual reward data
                 var rewardUIField = fields.FirstOrDefault(f => f.Name == "rewardUI");
                 if (rewardUIField != null)
@@ -257,7 +252,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var rewardUI = rewardUIField.GetValue(goodUI);
                     if (rewardUI != null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Found rewardUI: {rewardUI.GetType().Name}");
                         string rewardInfo = ExtractRewardUIInfo(rewardUI);
                         if (!string.IsNullOrEmpty(rewardInfo))
                         {
@@ -316,8 +310,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 var methods = uiType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
 
-                MonsterTrainAccessibility.LogInfo($"RewardUI type: {uiType.Name}");
-
                 // Priority 1: Check rewardData backing field first - this has the actual data
                 var rewardDataField = fields.FirstOrDefault(f =>
                     f.Name == "<rewardData>k__BackingField" || f.Name == "rewardData");
@@ -326,7 +318,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var rewardData = rewardDataField.GetValue(rewardUI);
                     if (rewardData != null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Found rewardData: {rewardData.GetType().Name}");
                         string info = ExtractRewardDataInfo(rewardData);
                         if (!string.IsNullOrEmpty(info))
                             return info;
@@ -342,7 +333,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var data = getDataMethod.Invoke(rewardUI, null);
                     if (data != null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"GetRewardData returned: {data.GetType().Name}");
                         string info = ExtractRewardDataInfo(data);
                         if (!string.IsNullOrEmpty(info))
                             return info;
@@ -356,7 +346,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var cardUI = cardUIField.GetValue(rewardUI);
                     if (cardUI != null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Found cardUI: {cardUI.GetType().Name}");
                         string cardInfo = CardTextReader.ExtractCardUIInfo(cardUI);
                         if (!string.IsNullOrEmpty(cardInfo))
                             return cardInfo;
@@ -370,7 +359,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var relicUI = relicUIField.GetValue(rewardUI);
                     if (relicUI != null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Found relicUI: {relicUI.GetType().Name}");
                         string relicInfo = ExtractRelicUIInfo(relicUI);
                         if (!string.IsNullOrEmpty(relicInfo))
                             return relicInfo;
@@ -384,7 +372,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     var genericUI = genericField.GetValue(rewardUI);
                     if (genericUI != null)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Found genericRewardUI: {genericUI.GetType().Name}");
                         string genericInfo = ExtractGenericRewardUIInfo(genericUI);
                         if (!string.IsNullOrEmpty(genericInfo))
                             return genericInfo;
@@ -408,7 +395,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
-        /// Extract info from reward data (CardData, RelicData, etc.)
+        /// Extract info from reward data (CardData, CardState, RelicData, etc.)
+        /// Delegates to CardTextReader for card types to get full info (rarity, type, clan, etc.)
         /// </summary>
         public static string ExtractRewardDataInfo(object data)
         {
@@ -419,8 +407,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 var dataType = data.GetType();
                 string typeName = dataType.Name;
 
-                MonsterTrainAccessibility.LogInfo($"Extracting reward data from: {typeName}");
-
                 // Special handling for EnhancerRewardData (upgrade stones like Surgestone)
                 if (typeName == "EnhancerRewardData")
                 {
@@ -429,53 +415,43 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         return enhancerInfo;
                 }
 
-                // Try GetName method
+                // For CardState or CardData, use CardTextReader for full info
+                if (typeName == "CardState" || typeName == "CardData")
+                {
+                    string cardInfo = CardTextReader.ExtractCardInfo(data);
+                    if (!string.IsNullOrEmpty(cardInfo))
+                        return cardInfo;
+                }
+
+                // For RelicData, extract name + description + keywords
+                if (typeName.Contains("Relic"))
+                {
+                    return ExtractRelicDataInfo(data, dataType);
+                }
+
+                // Generic: try GetName + GetDescription
                 var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
                 if (getNameMethod != null)
                 {
                     var name = getNameMethod.Invoke(data, null) as string;
                     if (!string.IsNullOrEmpty(name))
                     {
-                        MonsterTrainAccessibility.LogInfo($"GetName returned: {name}");
+                        var parts = new List<string>();
+                        parts.Add(TextUtilities.StripRichTextTags(name));
 
-                        // Try to get description too
-                        string desc = null;
                         var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes);
                         if (getDescMethod != null)
                         {
-                            desc = getDescMethod.Invoke(data, null) as string;
+                            var desc = getDescMethod.Invoke(data, null) as string;
+                            if (!string.IsNullOrEmpty(desc))
+                                parts.Add(TextUtilities.StripRichTextTags(desc));
                         }
-
-                        // Try to get cost for cards
-                        int cost = -1;
-                        var getCostMethod = dataType.GetMethod("GetCost", Type.EmptyTypes);
-                        if (getCostMethod != null)
-                        {
-                            var costResult = getCostMethod.Invoke(data, null);
-                            if (costResult is int c)
-                                cost = c;
-                        }
-
-                        List<string> parts = new List<string>();
-                        parts.Add(TextUtilities.StripRichTextTags(name));
-
-                        if (cost >= 0)
-                            parts.Add($"{cost} ember");
-
-                        if (!string.IsNullOrEmpty(desc))
-                            parts.Add(TextUtilities.StripRichTextTags(desc));
 
                         return string.Join(". ", parts);
                     }
                 }
 
-                // For CardState, get CardData first
-                if (typeName == "CardState")
-                {
-                    return CardTextReader.ExtractCardInfo(data);
-                }
-
-                // Try fields
+                // Try fields as last resort
                 var fields = dataType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 var nameField = fields.FirstOrDefault(f => f.Name.ToLower().Contains("name"));
                 if (nameField != null)
@@ -494,6 +470,68 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
+        /// Extract relic/artifact info with name, description, and keywords
+        /// </summary>
+        private static string ExtractRelicDataInfo(object relicData, Type dataType)
+        {
+            try
+            {
+                string name = null;
+                string desc = null;
+
+                var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
+                if (getNameMethod != null)
+                    name = getNameMethod.Invoke(relicData, null) as string;
+
+                if (string.IsNullOrEmpty(name)) return null;
+
+                // Try various description methods
+                string[] descMethodNames = { "GetDescription", "GetEffectText", "GetDescriptionText" };
+                foreach (var methodName in descMethodNames)
+                {
+                    var method = dataType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
+                    if (method != null && method.GetParameters().Length == 0)
+                    {
+                        desc = method.Invoke(relicData, null) as string;
+                        if (!string.IsNullOrEmpty(desc)) break;
+                    }
+                }
+
+                // Try localization key fallback
+                if (string.IsNullOrEmpty(desc))
+                {
+                    var descKeyMethod = dataType.GetMethod("GetDescriptionKey", BindingFlags.Public | BindingFlags.Instance);
+                    if (descKeyMethod != null && descKeyMethod.GetParameters().Length == 0)
+                    {
+                        var key = descKeyMethod.Invoke(relicData, null) as string;
+                        if (!string.IsNullOrEmpty(key))
+                            desc = LocalizationHelper.TryLocalize(key);
+                    }
+                }
+
+                var sb = new StringBuilder();
+                sb.Append($"Artifact: {TextUtilities.StripRichTextTags(name)}");
+
+                if (!string.IsNullOrEmpty(desc) && !desc.Contains("_descriptionKey"))
+                {
+                    string cleanDesc = TextUtilities.CleanSpriteTagsForSpeech(desc);
+                    sb.Append($". {cleanDesc}");
+
+                    var keywords = new List<string>();
+                    CardTextReader.ExtractKeywordsFromDescription(desc, keywords);
+                    if (keywords.Count > 0)
+                    {
+                        sb.Append($". Keywords: {string.Join(". ", keywords)}");
+                    }
+                }
+
+                return sb.ToString();
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
         /// Extract info from MerchantServiceUI (upgrade/service)
         /// </summary>
         public static string ExtractMerchantServiceInfo(Component serviceUI)
@@ -504,22 +542,7 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 var methods = uiType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
 
-                // Log the GameObject hierarchy - the name often contains the service type
                 var go = serviceUI.gameObject;
-                string hierarchyPath = go.name;
-                var parent = go.transform.parent;
-                while (parent != null)
-                {
-                    hierarchyPath = parent.name + "/" + hierarchyPath;
-                    parent = parent.parent;
-                    if (hierarchyPath.Length > 200) break; // Safety limit
-                }
-                MonsterTrainAccessibility.LogInfo($"MerchantServiceUI hierarchy: {hierarchyPath}");
-                MonsterTrainAccessibility.LogInfo($"MerchantServiceUI fields: {string.Join(", ", fields.Select(f => f.Name).Take(20))}");
-
-                // Log all components on this GameObject
-                var components = go.GetComponents<Component>();
-                MonsterTrainAccessibility.LogInfo($"Components on GO: {string.Join(", ", components.Select(c => c?.GetType().Name ?? "null"))}");
 
                 string serviceName = null;
                 string serviceDesc = null;
@@ -551,11 +574,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     serviceName = "Unleash";
                 }
 
-                if (!string.IsNullOrEmpty(serviceName))
-                {
-                    MonsterTrainAccessibility.LogInfo($"Got service name from GO name: {serviceName}");
-                }
-
                 // Priority 1: Extract service index from GO name and get data from MerchantScreen
                 if (string.IsNullOrEmpty(serviceName))
                 {
@@ -565,7 +583,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     if (match.Success)
                     {
                         serviceIndex = int.Parse(match.Groups[1].Value) - 1; // Convert to 0-based
-                        MonsterTrainAccessibility.LogInfo($"Service sign index: {serviceIndex}");
                     }
 
                     // Find MerchantScreen or MerchantScreenContent parent and get services list
@@ -584,11 +601,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
                             // Look for MerchantScreen or MerchantScreenContent
                             if (compName == "MerchantScreen" || compName == "MerchantScreenContent")
                             {
-                                MonsterTrainAccessibility.LogInfo($"Found parent component: {compType.Name}");
-
                                 // Look for services list/array field
                                 var compFields = compType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                MonsterTrainAccessibility.LogInfo($"{compName} fields: {string.Join(", ", compFields.Select(f => f.Name).Take(20))}");
 
                                 // First check sourceMerchantData which should contain the actual service definitions
                                 var merchantDataField = compFields.FirstOrDefault(f => f.Name == "sourceMerchantData");
@@ -598,11 +612,7 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                     if (merchantData != null)
                                     {
                                         var mdType = merchantData.GetType();
-                                        MonsterTrainAccessibility.LogInfo($"sourceMerchantData type: {mdType.Name}");
-
-                                        // Log all fields on merchant data
                                         var mdFields = mdType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                        MonsterTrainAccessibility.LogInfo($"MerchantData fields: {string.Join(", ", mdFields.Select(f => f.Name).Take(20))}");
 
                                         // Look for services list in merchant data
                                         foreach (var mdField in mdFields)
@@ -613,25 +623,17 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                                 var servicesValue = mdField.GetValue(merchantData);
                                                 if (servicesValue != null)
                                                 {
-                                                    MonsterTrainAccessibility.LogInfo($"Found {mdField.Name}: {servicesValue.GetType().Name}");
-
                                                     if (servicesValue is System.Collections.IList servicesList && serviceIndex >= 0 && serviceIndex < servicesList.Count)
                                                     {
                                                         var svcData = servicesList[serviceIndex];
                                                         if (svcData != null)
                                                         {
                                                             var svcType = svcData.GetType();
-                                                            MonsterTrainAccessibility.LogInfo($"Service[{serviceIndex}] type: {svcType.Name}");
-
-                                                            // Log service data fields
-                                                            var svcFields = svcType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                                            MonsterTrainAccessibility.LogInfo($"Service fields: {string.Join(", ", svcFields.Select(f => f.Name).Take(15))}");
 
                                                             var getNameMethod = svcType.GetMethod("GetName", Type.EmptyTypes);
                                                             if (getNameMethod != null)
                                                             {
                                                                 serviceName = getNameMethod.Invoke(svcData, null) as string;
-                                                                MonsterTrainAccessibility.LogInfo($"Service name from GetName(): {serviceName}");
                                                             }
 
                                                             // Try GetDescription
@@ -662,8 +664,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                     // Look for services list
                                     if (fieldName.Contains("service"))
                                     {
-                                        MonsterTrainAccessibility.LogInfo($"Found field {field.Name}: {value.GetType().Name}");
-
                                         // If it's a list/array, try to get item by index
                                         if (value is System.Collections.IList list && serviceIndex >= 0 && serviceIndex < list.Count)
                                         {
@@ -671,13 +671,11 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                             if (serviceData != null)
                                             {
                                                 var dataType = serviceData.GetType();
-                                                MonsterTrainAccessibility.LogInfo($"Service data type: {dataType.Name}");
 
                                                 var getNameMethod = dataType.GetMethod("GetName", Type.EmptyTypes);
                                                 if (getNameMethod != null)
                                                 {
                                                     serviceName = getNameMethod.Invoke(serviceData, null) as string;
-                                                    MonsterTrainAccessibility.LogInfo($"Service name from list[{serviceIndex}]: {serviceName}");
                                                 }
 
                                                 var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes) ??
@@ -699,7 +697,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                             serviceName = nameMethod.Invoke(value, null) as string;
                                             if (!string.IsNullOrEmpty(serviceName))
                                             {
-                                                MonsterTrainAccessibility.LogInfo($"Service name from {field.Name}: {serviceName}");
                                                 break;
                                             }
                                         }
@@ -719,7 +716,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 {
                     // Check all properties on MerchantServiceUI
                     var props = uiType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    MonsterTrainAccessibility.LogInfo($"MerchantServiceUI properties: {string.Join(", ", props.Select(p => p.Name).Take(15))}");
 
                     // Check GoodState property specifically - this likely contains the service data
                     var goodStateProp = props.FirstOrDefault(p => p.Name == "GoodState");
@@ -731,15 +727,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
                             if (goodState != null)
                             {
                                 var gsType = goodState.GetType();
-                                MonsterTrainAccessibility.LogInfo($"GoodState type: {gsType.Name}");
 
-                                // Log GoodState fields
-                                var gsFields = gsType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                MonsterTrainAccessibility.LogInfo($"GoodState fields: {string.Join(", ", gsFields.Select(f => f.Name).Take(15))}");
-
-                                // Log GoodState properties
                                 var gsProps = gsType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                MonsterTrainAccessibility.LogInfo($"GoodState properties: {string.Join(", ", gsProps.Select(p => p.Name).Take(15))}");
 
                                 // Check RewardData property - this should have the actual service info
                                 var rewardDataProp = gsProps.FirstOrDefault(p => p.Name == "RewardData");
@@ -751,7 +740,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                         if (rewardData != null)
                                         {
                                             var rdType = rewardData.GetType();
-                                            MonsterTrainAccessibility.LogInfo($"RewardData type: {rdType.Name}");
 
                                             // Map RewardData type name to friendly service name and description
                                             (serviceName, serviceDesc) = rdType.Name switch
@@ -767,11 +755,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                                 _ => (null, null)
                                             };
 
-                                            if (!string.IsNullOrEmpty(serviceName))
-                                            {
-                                                MonsterTrainAccessibility.LogInfo($"Service name from type mapping: {serviceName}");
-                                            }
-
                                             // If mapping didn't work, try GetName method
                                             if (string.IsNullOrEmpty(serviceName))
                                             {
@@ -779,7 +762,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                                 if (getNameMethod != null)
                                                 {
                                                     serviceName = getNameMethod.Invoke(rewardData, null) as string;
-                                                    MonsterTrainAccessibility.LogInfo($"Service name from RewardData.GetName(): {serviceName}");
                                                 }
                                             }
 
@@ -801,7 +783,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                                             if (!string.IsNullOrEmpty(desc) && !desc.Contains("__") && !desc.Contains("-v2"))
                                                             {
                                                                 serviceDesc = desc;
-                                                                MonsterTrainAccessibility.LogInfo($"Got description from {methodName}: {serviceDesc}");
                                                                 break;
                                                             }
                                                         }
@@ -830,7 +811,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                     if (getNameMethod != null)
                                     {
                                         serviceName = getNameMethod.Invoke(goodState, null) as string;
-                                        MonsterTrainAccessibility.LogInfo($"Service name from GoodState.GetName(): {serviceName}");
                                     }
                                 }
 
@@ -842,7 +822,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                     if (getDescMethod != null)
                                     {
                                         serviceDesc = getDescMethod.Invoke(goodState, null) as string;
-                                        MonsterTrainAccessibility.LogInfo($"Service desc from GoodState: {serviceDesc}");
                                     }
                                 }
                             }
@@ -863,14 +842,11 @@ namespace MonsterTrainAccessibility.Screens.Readers
                                 var value = prop.GetValue(serviceUI);
                                 if (value != null)
                                 {
-                                    MonsterTrainAccessibility.LogInfo($"Property {prop.Name}: {value.GetType().Name}");
-
                                     var valueType = value.GetType();
                                     var getNameMethod = valueType.GetMethod("GetName", Type.EmptyTypes);
                                     if (getNameMethod != null)
                                     {
                                         serviceName = getNameMethod.Invoke(value, null) as string;
-                                        MonsterTrainAccessibility.LogInfo($"Service name from property: {serviceName}");
                                     }
                                 }
                             }
@@ -887,20 +863,16 @@ namespace MonsterTrainAccessibility.Screens.Readers
 
                     foreach (var method in getDataMethods)
                     {
-                        MonsterTrainAccessibility.LogInfo($"Found method: {method.Name} returns {method.ReturnType.Name}");
                         try
                         {
                             var result = method.Invoke(serviceUI, null);
                             if (result != null)
                             {
-                                MonsterTrainAccessibility.LogInfo($"Method {method.Name} returned: {result.GetType().Name}");
-
                                 var resultType = result.GetType();
                                 var getNameMethod = resultType.GetMethod("GetName", Type.EmptyTypes);
                                 if (getNameMethod != null)
                                 {
                                     serviceName = getNameMethod.Invoke(result, null) as string;
-                                    MonsterTrainAccessibility.LogInfo($"Service name from method result: {serviceName}");
                                     if (!string.IsNullOrEmpty(serviceName)) break;
                                 }
                             }
@@ -921,8 +893,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         // Check for service/data objects
                         if (fieldName.Contains("service") || fieldName.Contains("data"))
                         {
-                            MonsterTrainAccessibility.LogInfo($"Checking field {field.Name}: {value.GetType().Name}");
-
                             // Try to get name/description from data object
                             var dataType = value.GetType();
 
@@ -930,7 +900,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                             if (getNameMethod != null)
                             {
                                 serviceName = getNameMethod.Invoke(value, null) as string;
-                                MonsterTrainAccessibility.LogInfo($"Service name from {field.Name}: {serviceName}");
                             }
 
                             var getDescMethod = dataType.GetMethod("GetDescription", Type.EmptyTypes) ??
@@ -954,7 +923,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     if (getNameMethod != null && getNameMethod.GetParameters().Length == 0)
                     {
                         serviceName = getNameMethod.Invoke(serviceUI, null) as string;
-                        MonsterTrainAccessibility.LogInfo($"Service name from method: {serviceName}");
                     }
                 }
 
@@ -962,33 +930,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 if (string.IsNullOrEmpty(serviceName))
                 {
                     var serviceGO = serviceUI.gameObject;
-
-                    // Log all immediate children
-                    var childNames = new List<string>();
-                    for (int i = 0; i < serviceGO.transform.childCount; i++)
-                    {
-                        var child = serviceGO.transform.GetChild(i);
-                        childNames.Add(child.name);
-
-                        // Try to get text from each immediate child
-                        string childText = GetTMPTextDirect(child.gameObject);
-                        if (!string.IsNullOrEmpty(childText))
-                        {
-                            MonsterTrainAccessibility.LogInfo($"Found text in child '{child.name}': {childText}");
-                        }
-
-                        // Also check grandchildren
-                        for (int j = 0; j < child.childCount; j++)
-                        {
-                            var grandchild = child.GetChild(j);
-                            string gcText = GetTMPTextDirect(grandchild.gameObject);
-                            if (!string.IsNullOrEmpty(gcText))
-                            {
-                                MonsterTrainAccessibility.LogInfo($"Found text in grandchild '{child.name}/{grandchild.name}': {gcText}");
-                            }
-                        }
-                    }
-                    MonsterTrainAccessibility.LogInfo($"MerchantServiceUI children: {string.Join(", ", childNames)}");
 
                     // Look for specific named children that might contain the title
                     var titleChildNames = new[] { "Title", "TitleLabel", "Name", "ServiceName", "TitleText", "Label", "Text" };
@@ -1000,7 +941,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                             serviceName = GetTMPTextDirect(titleChild.gameObject);
                             if (!string.IsNullOrEmpty(serviceName))
                             {
-                                MonsterTrainAccessibility.LogInfo($"Got service name from child '{childName}': {serviceName}");
                                 break;
                             }
                         }
@@ -1010,12 +950,10 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     if (string.IsNullOrEmpty(serviceName))
                     {
                         var childTexts = UITextHelper.GetAllTextFromChildren(serviceGO);
-                        MonsterTrainAccessibility.LogInfo($"Child texts found: {string.Join(", ", childTexts.Take(5))}");
 
                         if (childTexts.Count > 0)
                         {
                             serviceName = childTexts[0];
-                            MonsterTrainAccessibility.LogInfo($"Got service name from children: {serviceName}");
 
                             if (childTexts.Count > 1)
                             {
@@ -1037,7 +975,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         if (titleLabel != null)
                         {
                             serviceName = UITextHelper.GetTextFromComponent(titleLabel);
-                            MonsterTrainAccessibility.LogInfo($"Got title from titleLabel field: {serviceName}");
                         }
                     }
 
@@ -1064,7 +1001,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                             if (fieldName.Contains("name") || fieldName.Contains("title"))
                             {
                                 serviceName = str;
-                                MonsterTrainAccessibility.LogInfo($"Got service name from string field {field.Name}: {serviceName}");
                             }
                             else if (fieldName.Contains("desc"))
                             {
@@ -1105,20 +1041,21 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
-        /// Get price from the BuyButton component
+        /// Get price from the BuyButton component or GoodState.Cost property.
+        /// Game API: BuyButton has private fields 'cost' (gold) and 'pyreHealthCost'.
+        /// MerchantGoodUIBase has GoodState property with Cost.
         /// </summary>
         public static string GetPriceFromBuyButton(GameObject go)
         {
             try
             {
-                // Find BuyButton in hierarchy
+                // Try BuyButton first (most reliable, shows actual displayed cost)
                 Component buyButton = FindComponentInHierarchy(go, "BuyButton");
                 if (buyButton != null)
                 {
                     var btnType = buyButton.GetType();
                     var fields = btnType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-                    // Look for cost field
                     var costField = fields.FirstOrDefault(f => f.Name == "cost");
                     if (costField != null)
                     {
@@ -1126,6 +1063,41 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         if (costValue is int cost && cost > 0)
                         {
                             return $"{cost} gold";
+                        }
+                    }
+
+                    // Check pyreHealthCost as alternate currency
+                    var pyreCostField = fields.FirstOrDefault(f => f.Name == "pyreHealthCost");
+                    if (pyreCostField != null)
+                    {
+                        var pyreCost = pyreCostField.GetValue(buyButton);
+                        if (pyreCost is int pCost && pCost > 0)
+                        {
+                            return $"{pCost} pyre health";
+                        }
+                    }
+                }
+
+                // Fallback: try GoodState.Cost on MerchantGoodUIBase
+                Component goodUI = FindComponentInHierarchy(go, "MerchantGoodDetailsUI")
+                                ?? FindComponentInHierarchy(go, "MerchantServiceUI");
+                if (goodUI != null)
+                {
+                    var goodStateProp = goodUI.GetType().GetProperty("GoodState", BindingFlags.Public | BindingFlags.Instance);
+                    if (goodStateProp != null)
+                    {
+                        var goodState = goodStateProp.GetValue(goodUI);
+                        if (goodState != null)
+                        {
+                            var costProp = goodState.GetType().GetProperty("Cost", BindingFlags.Public | BindingFlags.Instance);
+                            if (costProp != null)
+                            {
+                                var cost = costProp.GetValue(goodState);
+                                if (cost is int c && c > 0)
+                                {
+                                    return $"{c} gold";
+                                }
+                            }
                         }
                     }
                 }
@@ -1214,12 +1186,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
 
                 if (enhancerData != null)
                 {
-                    MonsterTrainAccessibility.LogInfo($"Found EnhancerData: {enhancerData.GetType().Name}");
                     return ExtractEnhancerDataInfo(enhancerData);
                 }
-
-                // If no enhancerData found, log available fields for debugging
-                MonsterTrainAccessibility.LogInfo($"EnhancerRewardData fields: {string.Join(", ", fields.Select(f => f.Name).Take(15))}");
             }
             catch (Exception ex)
             {
@@ -1320,7 +1288,6 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     // Add helper instruction
                     parts.Add("After selecting a card, press Enter to apply the upgrade");
 
-                    MonsterTrainAccessibility.LogInfo($"Enhancer result: {string.Join(". ", parts)}");
                     return string.Join(". ", parts);
                 }
 

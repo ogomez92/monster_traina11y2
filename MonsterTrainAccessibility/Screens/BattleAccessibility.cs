@@ -360,6 +360,19 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
                 return;
 
+            // Special-case ability cooldown / readiness for clearer output
+            string lower = effectName?.ToLowerInvariant() ?? "";
+            if (lower == "unit ability available")
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability ready");
+                return;
+            }
+            if (lower == "cooldown")
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability on cooldown {stacks}");
+                return;
+            }
+
             MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {effectName} {stacks}");
         }
 
@@ -464,10 +477,48 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceStatusEffects.Value)
                 return;
 
+            // Special-case ability cooldown / readiness
+            string lower = effectName?.ToLowerInvariant() ?? "";
+            if (lower == "unit ability available")
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability used");
+                return;
+            }
+            if (lower == "cooldown")
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability ready");
+                return;
+            }
+
             string message = stacks > 1
                 ? $"{unitName} loses {stacks} {effectName}"
                 : $"{unitName} loses {effectName}";
             MonsterTrainAccessibility.ScreenReader?.Queue(message);
+        }
+
+        public void OnCharacterMoved(string unitName, bool ascended)
+        {
+            if (!IsInBattle) return;
+            MonsterTrainAccessibility.ScreenReader?.Queue(
+                ascended ? $"{unitName} ascended" : $"{unitName} descended");
+        }
+
+        public void OnEquipmentAdded(string unitName, string equipmentName)
+        {
+            if (!IsInBattle) return;
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} equipped {equipmentName}");
+        }
+
+        public void OnEquipmentRemoved(string unitName, string equipmentName)
+        {
+            if (!IsInBattle) return;
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} unequipped {equipmentName}");
+        }
+
+        public void OnMoonPhaseChanged(string phaseName)
+        {
+            if (!IsInBattle) return;
+            MonsterTrainAccessibility.ScreenReader?.Queue($"Moon phase: {phaseName}");
         }
 
         public void OnAllEnemiesDefeated()
@@ -492,6 +543,73 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {amount} max health");
+        }
+
+        public void OnAttackDebuffed(string unitName, int amount)
+        {
+            if (!IsInBattle || amount <= 0) return;
+            OnAttackBuffed(unitName, -amount);
+        }
+
+        public void OnMaxHPDebuffed(string unitName, int amount)
+        {
+            if (!IsInBattle || amount <= 0) return;
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} loses {amount} max health");
+        }
+
+        public void OnAttackBuffed(string unitName, int amount)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (amount == 0) return;
+
+            // Mirror the game's own notification: CardEffectBuffDamage_Activated formatted
+            // with TextFormat_Add / TextFormat_Default. Produces "+X ATK" / "Gana X de ataque"
+            // in whatever language the game is running.
+            string template = Utilities.LocalizationHelper.Localize("CardEffectBuffDamage_Activated");
+            string amountTemplate = Utilities.LocalizationHelper.Localize(amount >= 0 ? "TextFormat_Add" : "TextFormat_Default");
+            string announcement;
+            if (!string.IsNullOrEmpty(template) && !string.IsNullOrEmpty(amountTemplate))
+            {
+                try
+                {
+                    announcement = $"{unitName} {string.Format(template, string.Format(amountTemplate, amount))}";
+                }
+                catch
+                {
+                    announcement = amount > 0
+                        ? $"{unitName} gains {amount} attack"
+                        : $"{unitName} loses {-amount} attack";
+                }
+            }
+            else
+            {
+                announcement = amount > 0
+                    ? $"{unitName} gains {amount} attack"
+                    : $"{unitName} loses {-amount} attack";
+            }
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
+        }
+
+        public void OnTriggerAbilityFired(string unitName, string triggerName)
+        {
+            if (!IsInBattle)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}'s {triggerName} triggered");
+        }
+
+        public void OnWaveStarted(int waveNumber)
+        {
+            if (!IsInBattle)
+                return;
+
+            if (waveNumber > 0)
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy wave {waveNumber}");
+            else
+                MonsterTrainAccessibility.ScreenReader?.Queue("New enemy wave");
         }
 
         #endregion

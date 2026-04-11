@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Help;
 using System;
 
 namespace MonsterTrainAccessibility.Patches.Screens
@@ -45,6 +46,7 @@ namespace MonsterTrainAccessibility.Patches.Screens
             try
             {
                 MonsterTrainAccessibility.LogInfo("Elixir draft screen entered");
+                ScreenStateTracker.SetScreen(Help.GameScreen.ElixirDraft);
                 MonsterTrainAccessibility.ScreenReader?.Speak("Elixir Selection. Choose an elixir to modify your run. Use arrow keys to browse, Enter to select. Press F1 for help.");
             }
             catch (Exception ex)
