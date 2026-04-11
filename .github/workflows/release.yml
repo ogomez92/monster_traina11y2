@@ -15,10 +15,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Create zip
-        run: cd release && zip -r ../MonsterTrainAccessibility-${{ github.ref_name }}.zip .
+        run: cd release && zip -r ../MonsterTrain2Accessibility-${{ github.ref_name }}.zip .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: MonsterTrainAccessibility-${{ github.ref_name }}.zip
+          files: MonsterTrain2Accessibility-${{ github.ref_name }}.zip
           generate_release_notes: true
