@@ -105,6 +105,12 @@ namespace MonsterTrainAccessibility.Core
                 EndTurn();
                 _inputCooldown = INPUT_COOLDOWN_TIME;
             }
+            else if (Input.GetKeyDown(KeyCode.F10))
+            {
+                DebugDumper.DumpScreenToLog();
+                MonsterTrainAccessibility.ScreenReader?.Speak("Screen dumped to log", false);
+                _inputCooldown = INPUT_COOLDOWN_TIME;
+            }
 
         }
 

@@ -22,6 +22,12 @@ namespace MonsterTrainAccessibility.Patches.Combat
         private static string _lastKey = "";
         private static float _lastTime = 0f;
 
+        // Cross-patch dedup: SpawnPointChangedPatch checks these so we don't
+        // double-announce when a unit ascends (which fires both PostAscension
+        // and OnSpawnPointChanged in the same frame).
+        public static int LastAnnouncedHash;
+        public static float LastAnnouncedTime;
+
         public static void TryPatch(Harmony harmony)
         {
             try
@@ -59,6 +65,40 @@ namespace MonsterTrainAccessibility.Patches.Combat
             }
         }
 
+        // Read the unit's current room via CharacterState.GetCurrentRoomIndex() and
+        // convert to user-facing floor (room 0=floor 3 top, 2=floor 1 bottom, 3=pyre→0).
+        // Returns -1 if the room can't be resolved so the caller can drop the suffix.
+        private static System.Reflection.MethodInfo _getCurrentRoomIndexMethod;
+        private static int GetUserFloorFromCharacter(object characterState)
+        {
+            if (characterState == null) return -1;
+            try
+            {
+                if (_getCurrentRoomIndexMethod == null || _getCurrentRoomIndexMethod.DeclaringType != characterState.GetType())
+                {
+                    _getCurrentRoomIndexMethod = characterState.GetType().GetMethod("GetCurrentRoomIndex", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    if (_getCurrentRoomIndexMethod == null)
+                    {
+                        MonsterTrainAccessibility.LogWarning($"CharacterMovementPatch: GetCurrentRoomIndex not found on {characterState.GetType().FullName}");
+                        return -1;
+                    }
+                }
+                var result = _getCurrentRoomIndexMethod.Invoke(characterState, null);
+                int roomIndex = Convert.ToInt32(result);
+                if (roomIndex < 0 || roomIndex > 3)
+                {
+                    MonsterTrainAccessibility.LogWarning($"CharacterMovementPatch: out-of-range roomIndex={roomIndex}");
+                    return -1;
+                }
+                return roomIndex == 3 ? 0 : roomIndex + 1; // pyre → 0, otherwise room 0=bottom (1), 1=mid (2), 2=top (3)
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetUserFloorFromCharacter error: {ex}");
+                return -1;
+            }
+        }
+
         // __0 = CharacterState, __1 = CharacterTriggerData.Trigger enum
         public static void Postfix(object __0, object __1)
         {
@@ -78,14 +118,17 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 if (!ascended && !descended) return;
 
                 string unitName = CharacterStateHelper.GetUnitName(__0);
+                int destinationFloor = GetUserFloorFromCharacter(__0);
 
-                string key = $"{unitName}_{triggerValue}";
+                string key = $"{unitName}_{triggerValue}_{destinationFloor}";
                 float now = UnityEngine.Time.unscaledTime;
                 if (key == _lastKey && now - _lastTime < 0.3f) return;
                 _lastKey = key;
                 _lastTime = now;
 
-                MonsterTrainAccessibility.BattleHandler?.OnCharacterMoved(unitName, ascended);
+                LastAnnouncedHash = __0.GetHashCode();
+                LastAnnouncedTime = now;
+                MonsterTrainAccessibility.BattleHandler?.OnCharacterMoved(unitName, ascended, destinationFloor);
             }
             catch (Exception ex)
             {

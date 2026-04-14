@@ -243,25 +243,11 @@ namespace MonsterTrainAccessibility.Screens
 
             if (count == 1)
             {
-                if (handSize > 0)
-                {
-                    MonsterTrainAccessibility.ScreenReader?.Queue($"Drew 1 card. Hand has {handSize} cards. Press 1 to {handSize} to select.");
-                }
-                else
-                {
-                    MonsterTrainAccessibility.ScreenReader?.Queue("Drew 1 card");
-                }
+                MonsterTrainAccessibility.ScreenReader?.Queue("Drew 1 card");
             }
             else if (count > 1)
             {
-                if (handSize > 0)
-                {
-                    MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards. Hand has {handSize} cards. Press 1 to {handSize} to select.");
-                }
-                else
-                {
-                    MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards");
-                }
+                MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards");
             }
         }
 
@@ -496,11 +482,15 @@ namespace MonsterTrainAccessibility.Screens
             MonsterTrainAccessibility.ScreenReader?.Queue(message);
         }
 
-        public void OnCharacterMoved(string unitName, bool ascended)
+        public void OnCharacterMoved(string unitName, bool ascended, int destinationFloor)
         {
             if (!IsInBattle) return;
-            MonsterTrainAccessibility.ScreenReader?.Queue(
-                ascended ? $"{unitName} ascended" : $"{unitName} descended");
+            string verb = ascended ? "ascends" : "descends";
+            string where = null;
+            if (destinationFloor == 0) where = "Pyre";
+            else if (destinationFloor >= 1 && destinationFloor <= 3) where = $"floor {destinationFloor}";
+            string msg = where != null ? $"{unitName} {verb} to {where}" : $"{unitName} {verb}";
+            MonsterTrainAccessibility.ScreenReader?.Queue(msg);
         }
 
         public void OnEquipmentAdded(string unitName, string equipmentName)
@@ -590,6 +580,9 @@ namespace MonsterTrainAccessibility.Screens
                     : $"{unitName} loses {-amount} attack";
             }
 
+            // The game's CardEffectBuffDamage_Activated template embeds a literal
+            // <sprite name="Attack"> tag — clean it up so it reads as "gains N attack".
+            announcement = Utilities.TextUtilities.CleanSpriteTagsForSpeech(announcement);
             MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
         }
 

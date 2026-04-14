@@ -264,7 +264,7 @@ namespace MonsterTrainAccessibility.Battle
         /// </summary>
         private void AnnounceTargetingStart()
         {
-            string floorName = SelectedFloor == 0 ? "Pyre" : $"Floor {SelectedFloor}";
+            string floorName = FloorReader.GetFloorDisplayName(SelectedFloor);
             string summary = GetFloorSummary(SelectedFloor);
             string floorInfo = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
             string message = $"Select floor. Page Up/Down to change. Enter to confirm, Escape to cancel. {floorInfo}";
@@ -276,7 +276,7 @@ namespace MonsterTrainAccessibility.Battle
         /// </summary>
         private void AnnounceFloorSelection()
         {
-            string floorName = SelectedFloor == 0 ? "Pyre" : $"Floor {SelectedFloor}";
+            string floorName = FloorReader.GetFloorDisplayName(SelectedFloor);
             string summary = GetFloorSummary(SelectedFloor);
             string message = string.IsNullOrEmpty(summary) ? floorName : $"{floorName}. {summary}";
             MonsterTrainAccessibility.ScreenReader?.Speak(message, false);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace MonsterTrainAccessibility.Battle
@@ -17,6 +18,25 @@ namespace MonsterTrainAccessibility.Battle
         }
 
         /// <summary>
+        /// Localized display name for a user-facing floor (1=bottom, 2=middle, 3=top, 0=pyre).
+        /// Tries to find a matching I2.Loc term in the game so all languages are covered;
+        /// falls back to English if no term is found.
+        /// </summary>
+        public static string GetFloorDisplayName(int userFloor)
+        {
+            switch (userFloor)
+            {
+                case 3: return "Top floor";
+                case 2: return "Middle floor";
+                case 1: return "Bottom floor";
+                case 0: return GetPyreDisplayName();
+                default: return $"Floor {userFloor}";
+            }
+        }
+
+        public static string GetPyreDisplayName() => "Pyre";
+
+        /// <summary>
         /// Announce all floors
         /// </summary>
         public void AnnounceAllFloors()
@@ -30,18 +50,26 @@ namespace MonsterTrainAccessibility.Battle
                 // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
                 // User floors: 1=bottom, 2=middle, 3=top
                 // Iterate user floors from bottom (1) to top (3)
-                for (int userFloor = 1; userFloor <= 3; userFloor++)
+                for (int userFloor = 3; userFloor >= 1; userFloor--)
                 {
-                    int roomIndex = 3 - userFloor; // Convert user floor to room index
+                    int roomIndex = userFloor - 1; // Convert user floor to room index (room 0 = bottom)
                     var room = GetRoom(roomIndex);
                     if (room != null)
                     {
-                        string floorName = $"Floor {userFloor}";
+                        string floorName = GetFloorDisplayName(userFloor);
+                        string capacity = GetMonsterCapacityString(room);
+                        string attachments = GetRoomAttachmentsString(room);
                         var units = UnitInfoHelper.GetUnitsInRoom(room);
+
+                        var parts = new List<string>();
+                        if (!string.IsNullOrEmpty(capacity))
+                            parts.Add(capacity);
+                        if (!string.IsNullOrEmpty(attachments))
+                            parts.Add(attachments);
 
                         if (units.Count == 0)
                         {
-                            output?.Queue($"{floorName}: Empty");
+                            parts.Add("Empty");
                         }
                         else
                         {
@@ -56,14 +84,13 @@ namespace MonsterTrainAccessibility.Battle
                                     friendlyDescriptions.Add(desc);
                             }
 
-                            var parts = new List<string>();
                             if (enemyDescriptions.Count > 0)
                                 parts.Add($"Enemies: {string.Join(", ", enemyDescriptions)}");
                             if (friendlyDescriptions.Count > 0)
                                 parts.Add($"Your units: {string.Join(", ", friendlyDescriptions)}");
-
-                            output?.Queue($"{floorName}: {string.Join(". ", parts)}");
                         }
+
+                        output?.Queue($"{floorName}: {string.Join(". ", parts)}");
                     }
                 }
 
@@ -72,7 +99,7 @@ namespace MonsterTrainAccessibility.Battle
                 int maxPyreHP = GetMaxPyreHealth();
                 if (pyreHP >= 0)
                 {
-                    output?.Queue($"Pyre: {pyreHP} of {maxPyreHP} health");
+                    output?.Queue($"{GetPyreDisplayName()}: {pyreHP} of {maxPyreHP} health");
                 }
             }
             catch (Exception ex)
@@ -144,7 +171,7 @@ namespace MonsterTrainAccessibility.Battle
                 // Room 0 = Floor 3 (top), Room 1 = Floor 2, Room 2 = Floor 1 (bottom), Room 3 = Pyre (floor 0)
                 if (roomIndex >= 0 && roomIndex <= 3)
                 {
-                    int userFloor = 3 - roomIndex; // This gives: 0->3, 1->2, 2->1, 3->0 (pyre)
+                    int userFloor = roomIndex == 3 ? 0 : roomIndex + 1; // room 0=bottom (1), 1=mid (2), 2=top (3), 3=pyre (0)
                     MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: Converting room {roomIndex} to floor {userFloor}");
                     return userFloor;
                 }
@@ -200,7 +227,7 @@ namespace MonsterTrainAccessibility.Battle
             try
             {
                 // Convert user-facing floor number (1-3) to internal room index
-                int roomIndex = 3 - floorNumber;
+                int roomIndex = floorNumber - 1;
 
                 var room = GetRoom(roomIndex);
                 if (room == null)
@@ -208,33 +235,36 @@ namespace MonsterTrainAccessibility.Battle
                     return $"Floor {floorNumber}: Unknown";
                 }
 
+                string capacity = GetMonsterCapacityString(room);
+                string attachments = GetRoomAttachmentsString(room);
                 var units = UnitInfoHelper.GetUnitsInRoom(room);
+
+                var parts = new List<string>();
+                if (!string.IsNullOrEmpty(capacity))
+                    parts.Add(capacity);
+                if (!string.IsNullOrEmpty(attachments))
+                    parts.Add(attachments);
+
                 if (units.Count == 0)
                 {
-                    return "Empty";
+                    parts.Add("Empty");
                 }
-
-                var friendlyUnits = new List<string>();
-                var enemyUnits = new List<string>();
-
-                foreach (var unit in units)
+                else
                 {
-                    string description = FormatUnitForFloorListing(unit);
-                    if (UnitInfoHelper.IsEnemyUnit(unit, _cache))
-                        enemyUnits.Add(description);
-                    else
-                        friendlyUnits.Add(description);
-                }
-
-                // Enemies first - they're usually the priority for decision-making
-                var parts = new List<string>();
-                if (enemyUnits.Count > 0)
-                {
-                    parts.Add($"Enemies: {string.Join(", ", enemyUnits)}");
-                }
-                if (friendlyUnits.Count > 0)
-                {
-                    parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
+                    var friendlyUnits = new List<string>();
+                    var enemyUnits = new List<string>();
+                    foreach (var unit in units)
+                    {
+                        string description = FormatUnitForFloorListing(unit);
+                        if (UnitInfoHelper.IsEnemyUnit(unit, _cache))
+                            enemyUnits.Add(description);
+                        else
+                            friendlyUnits.Add(description);
+                    }
+                    if (enemyUnits.Count > 0)
+                        parts.Add($"Enemies: {string.Join(", ", enemyUnits)}");
+                    if (friendlyUnits.Count > 0)
+                        parts.Add($"Your units: {string.Join(", ", friendlyUnits)}");
                 }
 
                 return string.Join(". ", parts);
@@ -257,7 +287,7 @@ namespace MonsterTrainAccessibility.Battle
             {
                 for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
                 {
-                    int roomIndex = 3 - floorNumber;
+                    int roomIndex = floorNumber - 1;
                     var room = GetRoom(roomIndex);
                     if (room == null) continue;
 
@@ -289,7 +319,7 @@ namespace MonsterTrainAccessibility.Battle
             {
                 for (int floorNumber = 1; floorNumber <= 3; floorNumber++)
                 {
-                    int roomIndex = 3 - floorNumber;
+                    int roomIndex = floorNumber - 1;
                     var room = GetRoom(roomIndex);
                     if (room == null) continue;
 
@@ -319,6 +349,186 @@ namespace MonsterTrainAccessibility.Battle
             allUnits.AddRange(GetAllEnemies());
             allUnits.AddRange(GetAllFriendlyUnits());
             return allUnits;
+        }
+
+        // Cached reflection bits for RoomState.Attachments -> TrainRoomAttachmentState.
+        private static System.Reflection.PropertyInfo _attachmentsProp;
+        private static System.Reflection.PropertyInfo _roomStateModifiersProp;
+        private static System.Reflection.MethodInfo _getDescriptionKeyInPlay;
+        private static System.Reflection.MethodInfo _getDescriptionKey;
+
+        /// <summary>
+        /// Build a comma-separated list of active TrainRoomAttachments on the given room,
+        /// localizing each attachment's IRoomStateModifier description. Used to surface
+        /// floor-state like "Pyre Dampener", "Phoenix Pyre", etc. during floor browsing.
+        /// </summary>
+        private string GetRoomAttachmentsString(object room)
+        {
+            if (room == null) return null;
+            try
+            {
+                var roomType = room.GetType();
+                if (_attachmentsProp == null || _attachmentsProp.DeclaringType != roomType)
+                {
+                    _attachmentsProp = roomType.GetProperty("Attachments", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (_attachmentsProp == null)
+                    {
+                        MonsterTrainAccessibility.LogWarning($"GetRoomAttachmentsString: Attachments property not found on {roomType.FullName}");
+                        return null;
+                    }
+                }
+
+                var attachments = _attachmentsProp.GetValue(room) as System.Collections.IEnumerable;
+                if (attachments == null) return null;
+
+                var descriptions = new List<string>();
+                foreach (var attachment in attachments)
+                {
+                    if (attachment == null) continue;
+                    try
+                    {
+                        var attType = attachment.GetType();
+                        var isActiveProp = attType.GetProperty("IsActive", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (isActiveProp != null)
+                        {
+                            var active = isActiveProp.GetValue(attachment);
+                            if (active is bool b && !b) continue;
+                        }
+
+                        if (_roomStateModifiersProp == null || _roomStateModifiersProp.DeclaringType != attType)
+                        {
+                            _roomStateModifiersProp = attType.GetProperty("RoomStateModifiers", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        }
+                        var modifiers = _roomStateModifiersProp?.GetValue(attachment) as System.Collections.IEnumerable;
+                        if (modifiers == null) continue;
+
+                        foreach (var mod in modifiers)
+                        {
+                            if (mod == null) continue;
+                            string desc = ResolveModifierDescription(mod);
+                            if (!string.IsNullOrEmpty(desc) && !descriptions.Contains(desc))
+                                descriptions.Add(desc);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MonsterTrainAccessibility.LogError($"GetRoomAttachmentsString attachment error: {ex}");
+                    }
+                }
+
+                if (descriptions.Count == 0) return null;
+                return string.Join(". ", descriptions);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetRoomAttachmentsString error: {ex}");
+                return null;
+            }
+        }
+
+        private string ResolveModifierDescription(object modifier)
+        {
+            try
+            {
+                var modType = modifier.GetType();
+                if (_getDescriptionKeyInPlay == null || _getDescriptionKeyInPlay.DeclaringType != modType)
+                {
+                    _getDescriptionKeyInPlay = modType.GetMethod("GetDescriptionKeyInPlay", Type.EmptyTypes);
+                    _getDescriptionKey = modType.GetMethod("GetDescriptionKey", Type.EmptyTypes);
+                }
+
+                string key = _getDescriptionKeyInPlay?.Invoke(modifier, null) as string;
+                if (string.IsNullOrEmpty(key))
+                    key = _getDescriptionKey?.Invoke(modifier, null) as string;
+                if (string.IsNullOrEmpty(key)) return null;
+
+                string localized = Utilities.LocalizationHelper.Localize(key);
+                if (string.IsNullOrEmpty(localized)) return null;
+
+                localized = Utilities.TextUtilities.CleanSpriteTagsForSpeech(localized);
+                localized = Utilities.TextUtilities.StripRichTextTags(localized);
+                return localized?.Trim();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ResolveModifierDescription error: {ex}");
+                return null;
+            }
+        }
+
+        // Cached reflection bits for RoomState.GetCapacityInfo(Team.Type team).
+        // The struct CapacityInfo exposes `count` (used) and `max` (total).
+        private static System.Reflection.MethodInfo _getCapacityInfoMethod;
+        private static System.Reflection.FieldInfo _capacityCountField;
+        private static System.Reflection.FieldInfo _capacityMaxField;
+        private static object _teamTypeMonsters;
+
+        /// <summary>
+        /// Format the monster-team capacity for the given room as "Capacity X of Y".
+        /// Returns null only when an actual error happens — and logs loudly so we can
+        /// diagnose later. No silent kill switch.
+        /// </summary>
+        private string GetMonsterCapacityString(object room)
+        {
+            if (room == null) return null;
+            try
+            {
+                var roomType = room.GetType();
+                if (_getCapacityInfoMethod == null || _getCapacityInfoMethod.DeclaringType != roomType)
+                {
+                    _getCapacityInfoMethod = roomType.GetMethod("GetCapacityInfo");
+                    if (_getCapacityInfoMethod == null)
+                    {
+                        MonsterTrainAccessibility.LogWarning($"GetMonsterCapacityString: GetCapacityInfo method not found on {roomType.FullName}");
+                        return null;
+                    }
+                }
+
+                if (_teamTypeMonsters == null)
+                {
+                    var teamParamType = _getCapacityInfoMethod.GetParameters()[0].ParameterType;
+                    if (!teamParamType.IsEnum)
+                    {
+                        MonsterTrainAccessibility.LogWarning($"GetMonsterCapacityString: GetCapacityInfo param is not an enum, got {teamParamType.FullName}");
+                        return null;
+                    }
+                    _teamTypeMonsters = Enum.Parse(teamParamType, "Monsters");
+                    MonsterTrainAccessibility.LogInfo($"GetMonsterCapacityString: resolved team enum {teamParamType.FullName}.Monsters");
+                }
+
+                var info = _getCapacityInfoMethod.Invoke(room, new[] { _teamTypeMonsters });
+                if (info == null)
+                {
+                    MonsterTrainAccessibility.LogWarning("GetMonsterCapacityString: GetCapacityInfo returned null");
+                    return null;
+                }
+
+                if (_capacityCountField == null || _capacityMaxField == null)
+                {
+                    var infoType = info.GetType();
+                    _capacityCountField = infoType.GetField("count");
+                    _capacityMaxField = infoType.GetField("max");
+                    if (_capacityCountField == null || _capacityMaxField == null)
+                    {
+                        MonsterTrainAccessibility.LogWarning($"GetMonsterCapacityString: count/max fields missing on {infoType.FullName} (fields: {string.Join(", ", infoType.GetFields().Select(f => f.Name))})");
+                        return null;
+                    }
+                }
+
+                int used = Convert.ToInt32(_capacityCountField.GetValue(info));
+                int max = Convert.ToInt32(_capacityMaxField.GetValue(info));
+                if (max <= 0)
+                {
+                    MonsterTrainAccessibility.LogWarning($"GetMonsterCapacityString: nonsensical max={max}, used={used}");
+                    return null;
+                }
+                return $"Capacity {used} of {max}";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetMonsterCapacityString error: {ex}");
+                return null;
+            }
         }
 
         /// <summary>

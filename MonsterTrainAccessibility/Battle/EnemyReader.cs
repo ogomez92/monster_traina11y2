@@ -32,13 +32,13 @@ namespace MonsterTrainAccessibility.Battle
                 int totalUnits = 0;
 
                 // Iterate user floors from bottom (1) to top (3), then pyre room
-                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // Room indices: 0=bottom, 1=middle, 2=top, 3=pyre room
                 // User floors: 1=bottom, 2=middle, 3=top
                 int[] userFloors = { 1, 2, 3 };
 
                 foreach (int userFloor in userFloors)
                 {
-                    int roomIndex = 3 - userFloor; // Convert user floor to room index
+                    int roomIndex = userFloor - 1; // Convert user floor to room index
                     var room = _floorReader.GetRoom(roomIndex);
                     if (room == null)
                     {

@@ -43,11 +43,13 @@ namespace MonsterTrainAccessibility.Core
             int statusCount = LoadStatusEffectKeywords();
             int triggerCount = LoadTriggerKeywords();
             int traitCount = LoadCardTraitKeywords();
+            int currencyCount = LoadCurrencyKeywords();
             int fallbackCount = LoadFallbackKeywords();
 
             MonsterTrainAccessibility.LogInfo(
                 $"KeywordManager built {_keywords.Count} keywords " +
-                $"(status={statusCount}, triggers={triggerCount}, traits={traitCount}, fallback={fallbackCount})");
+                $"(status={statusCount}, triggers={triggerCount}, traits={traitCount}, " +
+                $"currency={currencyCount}, fallback={fallbackCount})");
         }
 
         private static int LoadStatusEffectKeywords()
@@ -62,6 +64,8 @@ namespace MonsterTrainAccessibility.Core
                     return 0;
                 }
 
+                Func<string, int?> paramIntProvider = GetStatusEffectParamIntProvider();
+
                 var field = semType.GetField("StatusIdToLocalizationExpression",
                     BindingFlags.Public | BindingFlags.Static);
                 if (field == null)
@@ -72,14 +76,14 @@ namespace MonsterTrainAccessibility.Core
                     {
                         var dict = prop.GetValue(null) as System.Collections.IDictionary;
                         if (dict != null)
-                            count = ProcessLocalizationDictionary(dict, "_CardText", "_CardTooltipText");
+                            count = ProcessLocalizationDictionary(dict, "_CardText", "_CardTooltipText", paramIntProvider);
                     }
                 }
                 else
                 {
                     var dict = field.GetValue(null) as System.Collections.IDictionary;
                     if (dict != null)
-                        count = ProcessLocalizationDictionary(dict, "_CardText", "_CardTooltipText");
+                        count = ProcessLocalizationDictionary(dict, "_CardText", "_CardTooltipText", paramIntProvider);
                 }
             }
             catch (Exception ex)
@@ -111,14 +115,14 @@ namespace MonsterTrainAccessibility.Core
                     {
                         var dict = prop.GetValue(null) as System.Collections.IDictionary;
                         if (dict != null)
-                            count = ProcessLocalizationDictionary(dict, "_CardText", "_TooltipText");
+                            count = ProcessLocalizationDictionary(dict, "_CardText", "_TooltipText", null);
                     }
                 }
                 else
                 {
                     var dict = field.GetValue(null) as System.Collections.IDictionary;
                     if (dict != null)
-                        count = ProcessLocalizationDictionary(dict, "_CardText", "_TooltipText");
+                        count = ProcessLocalizationDictionary(dict, "_CardText", "_TooltipText", null);
                 }
             }
             catch (Exception ex)
@@ -129,7 +133,8 @@ namespace MonsterTrainAccessibility.Core
         }
 
         private static int ProcessLocalizationDictionary(
-            System.Collections.IDictionary dict, string nameSuffix, string tooltipSuffix)
+            System.Collections.IDictionary dict, string nameSuffix, string tooltipSuffix,
+            Func<string, int?> paramIntProvider)
         {
             int count = 0;
             foreach (System.Collections.DictionaryEntry entry in dict)
@@ -139,8 +144,13 @@ namespace MonsterTrainAccessibility.Core
                     string prefix = entry.Value as string;
                     if (string.IsNullOrEmpty(prefix)) continue;
 
+                    string statusKey = entry.Key as string;
+                    int? paramInt = paramIntProvider?.Invoke(statusKey);
+
                     string name = TryLocalize(prefix + nameSuffix);
-                    string tooltip = TryLocalize(prefix + tooltipSuffix);
+                    string tooltip = paramInt.HasValue
+                        ? LocalizationHelper.LocalizeWithInt(prefix + tooltipSuffix, paramInt.Value)
+                        : TryLocalize(prefix + tooltipSuffix);
 
                     if (string.IsNullOrEmpty(name) || name == (prefix + nameSuffix))
                         continue;
@@ -240,6 +250,63 @@ namespace MonsterTrainAccessibility.Core
             return count;
         }
 
+        /// <summary>
+        /// Register keywords for sprite-icon currencies/resources (Dragon's Hoard, etc).
+        /// These aren't status effects or triggers, so they aren't covered by the other
+        /// loaders. We resolve their localized name by scanning I2.Loc terms for the
+        /// sprite asset id, then pull a tooltip via FindTerm if one exists.
+        /// </summary>
+        private static int LoadCurrencyKeywords()
+        {
+            int count = 0;
+            // Sprite asset ids embedded in card text by the game (see CardEffectAdjustDragonsHoard.cs).
+            string[] currencySprites = { "DragonsHoard" };
+
+            foreach (var sprite in currencySprites)
+            {
+                try
+                {
+                    string localizedName = LocalizationHelper.GetSpriteDisplayName(sprite);
+                    if (string.IsNullOrEmpty(localizedName)) continue;
+                    localizedName = TextUtilities.StripRichTextTags(localizedName).Trim();
+                    if (string.IsNullOrEmpty(localizedName)) continue;
+
+                    string tooltipKey = LocalizationHelper.FindTerm(sprite,
+                        "_Description", "_Desc", "_TooltipBody", "_TooltipText", "_Tooltip");
+                    string tooltip = !string.IsNullOrEmpty(tooltipKey) ? LocalizationHelper.Localize(tooltipKey) : null;
+
+                    string value;
+                    if (!string.IsNullOrEmpty(tooltip))
+                    {
+                        tooltip = TextUtilities.CleanSpriteTagsForSpeech(tooltip).Trim();
+
+                        // Skip tooltip templates the game fills in with string.Format —
+                        // showing raw "{0}", "{1}" placeholders is worse than no tooltip.
+                        if (System.Text.RegularExpressions.Regex.IsMatch(tooltip, @"\{\d+\}"))
+                            tooltip = null;
+                    }
+
+                    // If no real tooltip was found, don't register a bare name entry —
+                    // let LoadFallbackKeywords provide a description instead.
+                    if (string.IsNullOrEmpty(tooltip) || tooltip == localizedName)
+                        continue;
+
+                    value = $"{localizedName}: {tooltip}";
+
+                    if (!_keywords.ContainsKey(localizedName))
+                    {
+                        _keywords[localizedName] = value;
+                        count++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MonsterTrainAccessibility.LogWarning($"KeywordManager: failed to load currency '{sprite}': {ex.Message}");
+                }
+            }
+            return count;
+        }
+
         private static int LoadFallbackKeywords()
         {
             int count = 0;
@@ -274,6 +341,8 @@ namespace MonsterTrainAccessibility.Core
                 { "Echo", "Echo: Copies the next spell played on this floor" },
                 { "Charged Echo", "Charged Echo: Stored echo charge that copies the next spell played" },
                 { "Pyre Lock", "Pyre Lock: Prevents the Pyre from being healed" },
+                { "Dragon's Hoard", "Dragon's Hoard: Currency collected during a run that unlocks bonus rewards on the Dragon's Hoard screen" },
+                { "Dragons Hoard", "Dragons Hoard: Currency collected during a run that unlocks bonus rewards on the Dragon's Hoard screen" },
                 // Trigger abilities
                 { "Slay", "Slay: Triggers after dealing a killing blow" },
                 { "Revenge", "Revenge: Triggers when this unit takes damage" },
@@ -439,6 +508,62 @@ namespace MonsterTrainAccessibility.Core
             catch { }
 
             return null;
+        }
+
+        /// <summary>
+        /// Build a function that returns the base paramInt for a status effect ID,
+        /// by walking AllGameManagers.Instance.GetStatusEffectManager().GetStatusEffectDataById(id).GetParamInt()
+        /// via reflection. Returns null on lookup failure for a given id, allowing
+        /// the caller to fall back to a context-less Localize call.
+        /// </summary>
+        private static Func<string, int?> GetStatusEffectParamIntProvider()
+        {
+            try
+            {
+                Type agmType = FindTypeInAssemblies("AllGameManagers");
+                if (agmType == null) return null;
+
+                var instanceProp = agmType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+                var instance = instanceProp?.GetValue(null);
+                if (instance == null) return null;
+
+                var getSemMethod = agmType.GetMethod("GetStatusEffectManager", Type.EmptyTypes);
+                var sem = getSemMethod?.Invoke(instance, null);
+                if (sem == null) return null;
+
+                var semType = sem.GetType();
+                var getDataMethod = semType.GetMethod("GetStatusEffectDataById",
+                    new[] { typeof(string), typeof(bool) });
+                if (getDataMethod == null)
+                    getDataMethod = semType.GetMethod("GetStatusEffectDataById", new[] { typeof(string) });
+                if (getDataMethod == null) return null;
+
+                bool wantsBool = getDataMethod.GetParameters().Length == 2;
+
+                return statusId =>
+                {
+                    if (string.IsNullOrEmpty(statusId)) return null;
+                    try
+                    {
+                        var args = wantsBool ? new object[] { statusId, false } : new object[] { statusId };
+                        var data = getDataMethod.Invoke(sem, args);
+                        if (data == null) return null;
+
+                        var getParamIntMethod = data.GetType().GetMethod("GetParamInt", Type.EmptyTypes);
+                        if (getParamIntMethod == null) return null;
+
+                        var result = getParamIntMethod.Invoke(data, null);
+                        if (result is int i) return i;
+                    }
+                    catch { }
+                    return null;
+                };
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogWarning($"KeywordManager: paramInt provider unavailable: {ex.Message}");
+                return null;
+            }
         }
 
         private static Type FindTypeInAssemblies(string typeName)

@@ -209,6 +209,19 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
+                // Never fire during battle. Card descriptions in hand contain words like
+                // "apply" and "upgrade" that trip the heuristic, and there's no upgrade
+                // selection screen during combat anyway.
+                if (MonsterTrainAccessibility.BattleHandler?.IsInBattle == true)
+                {
+                    if (_lastUpgradeScreenCheck != null)
+                    {
+                        _lastUpgradeScreenCheck = null;
+                        _upgradeScreenHelperAnnounced = false;
+                    }
+                    return;
+                }
+
                 // Look for upgrade selection screen indicators
                 var rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
 
@@ -560,6 +573,15 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
+            // Champion upgrade choice tiles must run BEFORE the CardUI check, because
+            // the tile embeds a CardUI for the post-upgrade card — if CardTextReader wins,
+            // the upgrade's own title (e.g. "Golden Crown") and description get skipped.
+            text = UpgradeChoiceTextReader.GetUpgradeChoiceText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // Check for cards in hand (CardUI component) - full card details
             text = CardTextReader.GetCardUIText(go);
             if (!string.IsNullOrEmpty(text))
@@ -574,6 +596,15 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
+            // Enemy silhouettes on BattleIntroScreen — walk the TooltipProviderComponent's
+            // structured TooltipContent list instead of letting the generic tooltip reader
+            // flatten the first entry into garbled text.
+            text = BattleIntroEnemyReader.GetEnemyPreviewText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // 1. Check for Fight button on BattleIntro screen - get battle name
             text = BattleIntroTextReader.GetBattleIntroText(go);
             if (!string.IsNullOrEmpty(text))
@@ -583,6 +614,13 @@ namespace MonsterTrainAccessibility.Screens
 
             // 1.6. Check for RelicInfoUI (artifact selection on RelicDraftScreen)
             text = RelicTextReader.GetRelicInfoText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            // 1.7. Check for Dragon's Hoard reward selection tiles
+            text = DragonsHoardRewardReader.GetDragonsHoardRewardItemText(go);
             if (!string.IsNullOrEmpty(text))
             {
                 return text;
@@ -1044,7 +1082,8 @@ namespace MonsterTrainAccessibility.Screens
                         if (!string.IsNullOrEmpty(cleanText) && !collectedTexts.Contains(cleanText))
                         {
                             collectedTexts.Add(cleanText);
-                            sb.AppendLine(cleanText);
+                            if (sb.Length > 0) sb.Append(", ");
+                            sb.Append(cleanText);
                         }
                     }
                 }
@@ -1111,7 +1150,8 @@ namespace MonsterTrainAccessibility.Screens
                         if (!string.IsNullOrEmpty(cleanText) && !collectedTexts.Contains(cleanText))
                         {
                             collectedTexts.Add(cleanText);
-                            sb.AppendLine(cleanText);
+                            if (sb.Length > 0) sb.Append(", ");
+                            sb.Append(cleanText);
                         }
                     }
                 }
@@ -1137,7 +1177,8 @@ namespace MonsterTrainAccessibility.Screens
                 if (!string.IsNullOrEmpty(cleaned) && !collected.Contains(cleaned))
                 {
                     collected.Add(cleaned);
-                    sb.AppendLine(cleaned);
+                    if (sb.Length > 0) sb.Append(", ");
+                    sb.Append(cleaned);
                 }
             }
 
@@ -1149,7 +1190,8 @@ namespace MonsterTrainAccessibility.Screens
                 if (!string.IsNullOrEmpty(cleaned) && !collected.Contains(cleaned))
                 {
                     collected.Add(cleaned);
-                    sb.AppendLine(cleaned);
+                    if (sb.Length > 0) sb.Append(", ");
+                    sb.Append(cleaned);
                 }
             }
 

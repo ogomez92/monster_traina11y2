@@ -73,6 +73,10 @@ namespace MonsterTrainAccessibility
                 // Initialize configuration first
                 AccessibilitySettings = new AccessibilityConfig(Config);
 
+                // Wire the sprite-name resolver so card text icons (e.g. <sprite name="DragonsHoard">)
+                // get replaced with the game's localized display name instead of a lower-cased asset id.
+                Utilities.TextUtilities.SpriteNameResolver = Utilities.LocalizationHelper.GetSpriteDisplayName;
+
                 // Initialize screen reader output (Tolk)
                 ScreenReader = new ScreenReaderOutput();
                 ScreenReader.Initialize();
@@ -207,6 +211,9 @@ namespace MonsterTrainAccessibility
             AttackDebuffPatch.TryPatch(_harmony);
             MaxHPDebuffPatch.TryPatch(_harmony);
             CharacterMovementPatch.TryPatch(_harmony);
+            CardFreezePatch.TryPatch(_harmony);
+            RoomSelectionPatch.TryPatch(_harmony);
+            SpawnPointChangedPatch.TryPatch(_harmony);
             EquipmentPatch.TryPatch(_harmony);
             MoonPhasePatch.TryPatch(_harmony);
             PyreHealPatch.TryPatch(_harmony);

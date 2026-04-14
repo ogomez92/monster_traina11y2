@@ -73,31 +73,10 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 // Get battle/boss name from SaveManager's scenario data (more reliable than UI label)
                 string battleName = GetBossNameFromScreen(battleIntroScreen, screenType);
 
-                // Get battle description
-                string battleDescription = null;
-                var descField = screenType.GetField("battleDescriptionLabel", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
-                if (descField != null)
-                {
-                    var descLabel = descField.GetValue(battleIntroScreen);
-                    if (descLabel != null)
-                    {
-                        // MultilineTextFitter might have a text property or GetText method
-                        var textProp = descLabel.GetType().GetProperty("text");
-                        if (textProp != null)
-                        {
-                            battleDescription = textProp.GetValue(descLabel) as string;
-                        }
-                        else
-                        {
-                            // Try GetText method
-                            var getTextMethod = descLabel.GetType().GetMethod("GetText");
-                            if (getTextMethod != null)
-                            {
-                                battleDescription = getTextMethod.Invoke(descLabel, null) as string;
-                            }
-                        }
-                    }
-                }
+                // Get battle description from ScenarioData.battleDescriptionKey — more
+                // reliable than reading the UI MultilineTextFitter label, which has no
+                // text property at the screen-entry moment we hook.
+                string battleDescription = GetBattleDescriptionFromScreen(battleIntroScreen, screenType);
 
                 // Build the announcement
                 sb.Append("Battle intro. ");
@@ -148,35 +127,34 @@ namespace MonsterTrainAccessibility.Patches.Screens
                                 ruleName = getNameMethod.Invoke(sinData, null) as string;
                             }
 
-                            // Get the rule description - try GetDescriptionKey() and localize
-                            var getDescKeyMethod = sinType.GetMethod("GetDescriptionKey");
-                            if (getDescKeyMethod != null && getDescKeyMethod.GetParameters().Length == 0)
+                            // Prefer RelicData.GetDescription() — it localizes with a
+                            // CardEffectLocalizationContext that resolves {[effect*.power]}
+                            // placeholders and sprite substitutions.
+                            var getDescMethod = sinType.GetMethod("GetDescription", Type.EmptyTypes);
+                            if (getDescMethod != null)
                             {
-                                var descKey = getDescKeyMethod.Invoke(sinData, null) as string;
-                                if (!string.IsNullOrEmpty(descKey))
+                                ruleDescription = getDescMethod.Invoke(sinData, null) as string;
+                            }
+                            if (string.IsNullOrEmpty(ruleDescription))
+                            {
+                                var getDescKeyMethod = sinType.GetMethod("GetDescriptionKey");
+                                if (getDescKeyMethod != null && getDescKeyMethod.GetParameters().Length == 0)
                                 {
-                                    ruleDescription = TryLocalizeKey(descKey);
-
-                                    // Resolve placeholders like {[effect0.status0.power]}
-                                    if (!string.IsNullOrEmpty(ruleDescription) && ruleDescription.Contains("{["))
+                                    var descKey = getDescKeyMethod.Invoke(sinData, null) as string;
+                                    if (!string.IsNullOrEmpty(descKey))
                                     {
-                                        ruleDescription = ResolveEffectPlaceholders(ruleDescription, sinData, sinType);
+                                        ruleDescription = TryLocalizeKey(descKey);
+                                        if (!string.IsNullOrEmpty(ruleDescription) && ruleDescription.Contains("{["))
+                                            ruleDescription = ResolveEffectPlaceholders(ruleDescription, sinData, sinType);
                                     }
                                 }
                             }
+                            if (!string.IsNullOrEmpty(ruleDescription))
+                                ruleDescription = TextUtilities.CleanSpriteTagsForSpeech(ruleDescription);
                         }
                     }
 
-                    // Get reward from trial data
-                    var rewardField = trialType.GetField("reward", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
-                    if (rewardField != null)
-                    {
-                        var rewardData = rewardField.GetValue(trialData);
-                        if (rewardData != null)
-                        {
-                            rewardName = GetRewardName(rewardData);
-                        }
-                    }
+                    rewardName = GetTrialRewardName(trialData, trialType);
 
                     // Build a clear, descriptive trial announcement
                     sb.Append("Trial available! ");
@@ -304,6 +282,64 @@ namespace MonsterTrainAccessibility.Patches.Screens
             return null;
         }
 
+        private static string GetTrialRewardName(object trialData, Type trialType)
+        {
+            try
+            {
+                // Prefer rewardList — the legacy `reward` field is [HideInInspector] and unused.
+                var listField = trialType.GetField("rewardList", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                var list = listField?.GetValue(trialData) as System.Collections.IList;
+                if (list != null && list.Count > 0)
+                {
+                    var names = new System.Collections.Generic.List<string>();
+                    foreach (var entry in list)
+                    {
+                        if (entry == null) continue;
+                        var n = GetRewardName(entry);
+                        if (!string.IsNullOrEmpty(n)) names.Add(n);
+                    }
+                    if (names.Count > 0)
+                        return string.Join(", ", names);
+                }
+
+                var rewardField = trialType.GetField("reward", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                var rewardData = rewardField?.GetValue(trialData);
+                return rewardData != null ? GetRewardName(rewardData) : null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetTrialRewardName error: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static string GetBattleDescriptionFromScreen(object screen, Type screenType)
+        {
+            try
+            {
+                var saveManagerField = screenType.GetField("saveManager", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var saveManager = saveManagerField?.GetValue(screen);
+                if (saveManager == null) return null;
+
+                var getCurrent = saveManager.GetType().GetMethod("GetCurrentScenarioData", BindingFlags.Public | BindingFlags.Instance);
+                var scenarioData = getCurrent?.Invoke(saveManager, null);
+                if (scenarioData == null) return null;
+
+                var scenarioType = scenarioData.GetType();
+                var keyField = scenarioType.GetField("battleDescriptionKey", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var key = keyField?.GetValue(scenarioData) as string;
+                if (string.IsNullOrEmpty(key)) return null;
+
+                var localized = TryLocalizeKey(key);
+                return string.IsNullOrEmpty(localized) ? null : localized;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting battle description: {ex.Message}");
+                return null;
+            }
+        }
+
         /// <summary>
         /// Get the battle name from a ScenarioData object
         /// </summary>
@@ -368,6 +404,16 @@ namespace MonsterTrainAccessibility.Patches.Screens
             try
             {
                 var rewardType = rewardData.GetType();
+
+                // RewardData.RewardTitle is the canonical property — it localizes the
+                // reward title key and falls back to GetFallbackRewardTitle() on miss.
+                var rewardTitleProp = rewardType.GetProperty("RewardTitle", BindingFlags.Public | BindingFlags.Instance);
+                if (rewardTitleProp != null)
+                {
+                    var title = rewardTitleProp.GetValue(rewardData) as string;
+                    if (!string.IsNullOrEmpty(title))
+                        return TextUtilities.CleanSpriteTagsForSpeech(title);
+                }
 
                 // Try GetTitle method first (if it exists)
                 var getTitleMethod = rewardType.GetMethod("GetTitle");

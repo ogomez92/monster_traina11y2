@@ -1222,6 +1222,16 @@ namespace MonsterTrainAccessibility.Screens.Readers
         {
             try
             {
+                // Special-case RewardNodeData: prefer name + linked clan over the generic
+                // tooltipTitleKey, which often resolves to "Merchant of Magic" for unit-pack
+                // banner nodes regardless of clan.
+                if (dataType.Name == "RewardNodeData" || dataType.BaseType?.Name == "RewardNodeData")
+                {
+                    string rewardNodeText = ExtractRewardNodeName(nodeData, dataType);
+                    if (!string.IsNullOrEmpty(rewardNodeText))
+                        return rewardNodeText;
+                }
+
                 // Try tooltipTitleKey field
                 var titleField = dataType.GetField("tooltipTitleKey", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 if (titleField == null)
@@ -1263,6 +1273,69 @@ namespace MonsterTrainAccessibility.Screens.Readers
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Build a descriptive name for a RewardNodeData. Pulls the linked clan via
+        /// requiredClass.GetTitle() and recognizes unit-pack banner nodes by asset name.
+        /// Returns null if we can't make something better than the generic fallback.
+        /// </summary>
+        private static string ExtractRewardNodeName(object nodeData, Type dataType)
+        {
+            try
+            {
+                string clanName = null;
+                var requiredClassField = dataType.GetField("requiredClass", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (requiredClassField != null)
+                {
+                    var classData = requiredClassField.GetValue(nodeData);
+                    if (classData != null)
+                    {
+                        var getTitleMethod = classData.GetType().GetMethod("GetTitle", Type.EmptyTypes);
+                        if (getTitleMethod != null)
+                        {
+                            clanName = getTitleMethod.Invoke(classData, null) as string;
+                            if (!string.IsNullOrEmpty(clanName))
+                                clanName = TextUtilities.StripRichTextTags(clanName);
+                        }
+                    }
+                }
+
+                string assetName = null;
+                var nameProp = dataType.GetProperty("name", BindingFlags.Public | BindingFlags.Instance);
+                if (nameProp != null)
+                    assetName = nameProp.GetValue(nodeData) as string;
+
+                bool isUnitPack = !string.IsNullOrEmpty(assetName) &&
+                    assetName.IndexOf("UnitPack", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                if (isUnitPack)
+                {
+                    return string.IsNullOrEmpty(clanName)
+                        ? "Clan banner"
+                        : $"{clanName} clan banner";
+                }
+
+                // Other reward nodes: get the localized title and append clan when known
+                string title = null;
+                var titleField = dataType.GetField("tooltipTitleKey", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (titleField != null)
+                {
+                    var titleKey = titleField.GetValue(nodeData) as string;
+                    if (!string.IsNullOrEmpty(titleKey))
+                        title = LocalizationHelper.Localize(titleKey);
+                }
+
+                if (string.IsNullOrEmpty(title))
+                    return null;
+
+                return string.IsNullOrEmpty(clanName) ? title : $"{title} ({clanName})";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ExtractRewardNodeName error: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>
@@ -1496,28 +1569,52 @@ namespace MonsterTrainAccessibility.Screens.Readers
                             ruleName = getNameMethod.Invoke(sinData, null) as string;
                         }
 
-                        // Get the rule description - try GetDescriptionKey() and localize
-                        var getDescKeyMethod = sinType.GetMethod("GetDescriptionKey");
-                        if (getDescKeyMethod != null && getDescKeyMethod.GetParameters().Length == 0)
+                        // Prefer RelicData.GetDescription() — it localizes with a
+                        // CardEffectLocalizationContext that resolves {[effect*.power]}
+                        // placeholders and sprite substitutions. GetDescriptionKey() +
+                        // raw Localize() leaves placeholders unresolved, which produced
+                        // broken output like "Pyre Dampener. per turn.".
+                        var getDescMethod = sinType.GetMethod("GetDescription", Type.EmptyTypes);
+                        if (getDescMethod != null)
                         {
-                            var descKey = getDescKeyMethod.Invoke(sinData, null) as string;
-                            if (!string.IsNullOrEmpty(descKey))
+                            ruleDescription = getDescMethod.Invoke(sinData, null) as string;
+                        }
+                        if (string.IsNullOrEmpty(ruleDescription))
+                        {
+                            var getDescKeyMethod = sinType.GetMethod("GetDescriptionKey");
+                            if (getDescKeyMethod != null && getDescKeyMethod.GetParameters().Length == 0)
                             {
-                                ruleDescription = LocalizationHelper.Localize(descKey);
+                                var descKey = getDescKeyMethod.Invoke(sinData, null) as string;
+                                if (!string.IsNullOrEmpty(descKey))
+                                    ruleDescription = LocalizationHelper.Localize(descKey);
                             }
                         }
+                        if (!string.IsNullOrEmpty(ruleDescription))
+                            ruleDescription = TextUtilities.CleanSpriteTagsForSpeech(ruleDescription);
                     }
                 }
 
-                // Get reward info from the 'reward' field
-                var rewardField = trialType.GetField("reward", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
-                if (rewardField != null)
+                // Prefer rewardList — the legacy `reward` field is [HideInInspector] and unused.
+                var rewardListField = trialType.GetField("rewardList", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                var rewardList = rewardListField?.GetValue(trialData) as System.Collections.IList;
+                if (rewardList != null && rewardList.Count > 0)
                 {
-                    var rewardData = rewardField.GetValue(trialData);
-                    if (rewardData != null)
+                    var names = new System.Collections.Generic.List<string>();
+                    foreach (var entry in rewardList)
                     {
-                        rewardName = ShopTextReader.GetRewardName(rewardData);
+                        if (entry == null) continue;
+                        var n = ShopTextReader.GetRewardName(entry);
+                        if (!string.IsNullOrEmpty(n)) names.Add(n);
                     }
+                    if (names.Count > 0)
+                        rewardName = string.Join(", ", names);
+                }
+                if (string.IsNullOrEmpty(rewardName))
+                {
+                    var rewardField = trialType.GetField("reward", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+                    var rewardData = rewardField?.GetValue(trialData);
+                    if (rewardData != null)
+                        rewardName = ShopTextReader.GetRewardName(rewardData);
                 }
 
                 // Build the announcement

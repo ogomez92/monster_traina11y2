@@ -485,40 +485,44 @@ namespace MonsterTrainAccessibility.Screens.Readers
 
                 if (string.IsNullOrEmpty(name)) return null;
 
-                // Try various description methods
-                string[] descMethodNames = { "GetDescription", "GetEffectText", "GetDescriptionText" };
-                foreach (var methodName in descMethodNames)
+                // Try GetDescription first (returns empty if no translation context)
+                try
                 {
-                    var method = dataType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
-                    if (method != null && method.GetParameters().Length == 0)
-                    {
+                    var method = dataType.GetMethod("GetDescription", Type.EmptyTypes);
+                    if (method != null)
                         desc = method.Invoke(relicData, null) as string;
-                        if (!string.IsNullOrEmpty(desc)) break;
-                    }
+                }
+                catch (Exception ex)
+                {
+                    MonsterTrainAccessibility.LogInfo($"ExtractRelicDataInfo GetDescription threw: {ex.Message}");
                 }
 
-                // Try localization key fallback
+                // Fallback: localize the descriptionKey directly and resolve effect placeholders
                 if (string.IsNullOrEmpty(desc))
                 {
-                    var descKeyMethod = dataType.GetMethod("GetDescriptionKey", BindingFlags.Public | BindingFlags.Instance);
-                    if (descKeyMethod != null && descKeyMethod.GetParameters().Length == 0)
+                    var descKeyMethod = dataType.GetMethod("GetDescriptionKey", Type.EmptyTypes);
+                    if (descKeyMethod != null)
                     {
                         var key = descKeyMethod.Invoke(relicData, null) as string;
                         if (!string.IsNullOrEmpty(key))
-                            desc = LocalizationHelper.TryLocalize(key);
+                        {
+                            desc = LocalizationHelper.Localize(key);
+                            if (!string.IsNullOrEmpty(desc))
+                                desc = LocalizationHelper.ResolveEffectPlaceholders(desc, relicData, dataType);
+                        }
                     }
                 }
 
                 var sb = new StringBuilder();
                 sb.Append($"Artifact: {TextUtilities.StripRichTextTags(name)}");
 
-                if (!string.IsNullOrEmpty(desc) && !desc.Contains("_descriptionKey"))
+                if (!string.IsNullOrEmpty(desc))
                 {
                     string cleanDesc = TextUtilities.CleanSpriteTagsForSpeech(desc);
                     sb.Append($". {cleanDesc}");
 
                     var keywords = new List<string>();
-                    CardTextReader.ExtractKeywordsFromDescription(desc, keywords);
+                    CardKeywordReader.ExtractKeywordsFromDescription(desc, keywords);
                     if (keywords.Count > 0)
                     {
                         sb.Append($". Keywords: {string.Join(". ", keywords)}");
@@ -1320,6 +1324,16 @@ namespace MonsterTrainAccessibility.Screens.Readers
             try
             {
                 var rewardType = rewardData.GetType();
+
+                // RewardData.RewardTitle is the canonical property — it localizes the
+                // reward title key and falls back to GetFallbackRewardTitle() on miss.
+                var rewardTitleProp = rewardType.GetProperty("RewardTitle", BindingFlags.Public | BindingFlags.Instance);
+                if (rewardTitleProp != null)
+                {
+                    var title = rewardTitleProp.GetValue(rewardData) as string;
+                    if (!string.IsNullOrEmpty(title))
+                        return TextUtilities.CleanSpriteTagsForSpeech(title);
+                }
 
                 // Try GetTitle method first (if it exists)
                 var getTitleMethod = rewardType.GetMethod("GetTitle");

@@ -162,7 +162,7 @@ namespace MonsterTrainAccessibility.Screens.Readers
 
                         // Extract and append keyword explanations
                         var keywords = new List<string>();
-                        CardTextReader.ExtractKeywordsFromDescription(relicDescription, keywords);
+                        CardKeywordReader.ExtractKeywordsFromDescription(relicDescription, keywords);
                         if (keywords.Count > 0)
                         {
                             sb.Append(" Keywords: ");

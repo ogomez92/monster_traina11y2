@@ -264,7 +264,7 @@ namespace MonsterTrainAccessibility.Patches.Combat
         private static int RoomIndexToUserFloor(int roomIndex)
         {
             if (roomIndex < 0 || roomIndex > 2) return -1;
-            return 3 - roomIndex;
+            return roomIndex + 1;
         }
 
         private static int GetUnitFloor(object characterState)

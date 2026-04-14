@@ -16,10 +16,34 @@ namespace MonsterTrainAccessibility.Utilities
             if (string.IsNullOrEmpty(text))
                 return text;
 
-            text = Regex.Replace(text, @"<[^>]+>", "");
+            text = Regex.Replace(text, @"<[^>]+>", " ");
             text = Regex.Replace(text, @"\s+", " ");
 
             return text.Trim();
+        }
+
+        /// <summary>
+        /// Fix singular/plural grammar for "1 stacks" / "1 turns" that the game's
+        /// localization templates leave in plural form regardless of count.
+        /// </summary>
+        public static string FixSingularGrammar(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            text = Regex.Replace(text, @"\b1 stacks\b", "1 stack");
+            text = Regex.Replace(text, @"\b1 turns\b", "1 turn");
+            text = Regex.Replace(text, @"\b1 times\b", "1 time");
+            return text;
+        }
+
+        /// <summary>
+        /// Strip trailing sentence punctuation and whitespace so callers can
+        /// append their own ". " separator without producing ".." artifacts.
+        /// </summary>
+        public static string TrimTrailingPunctuation(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+            return text.TrimEnd('.', ' ', '\t', '\r', '\n');
         }
 
         /// <summary>
@@ -31,38 +55,79 @@ namespace MonsterTrainAccessibility.Utilities
             if (string.IsNullOrEmpty(text))
                 return text;
 
-            bool hadSprite = text.Contains("sprite");
-            if (hadSprite)
-            {
-                MonsterTrainAccessibility.LogInfo($"CleanSpriteTagsForSpeech input: '{text}'");
-            }
+            // Card text often glues a signed number onto a stat-icon sprite, e.g.
+            // "+2<sprite name=\"Attack\">" or "-1<sprite=Health>". Rewrite those to
+            // a natural "gains 2 attack" / "loses 1 health" phrase before the
+            // generic sprite-tag replacement runs.
+            text = Regex.Replace(
+                text,
+                @"([+-])(\d+)\s*<sprite(?:\s+name)?\s*=\s*[""']?(Attack|Health|Size|Ember|MagicPower)[""']?\s*/?>",
+                match =>
+                {
+                    string verb = match.Groups[1].Value == "+" ? "gains" : "loses";
+                    string n = match.Groups[2].Value;
+                    string stat = ReadableSpriteName(match.Groups[3].Value).ToLowerInvariant();
+                    return $" {verb} {n} {stat} ";
+                },
+                RegexOptions.IgnoreCase);
 
-            // Convert sprite tags to readable text
+            // Convert <sprite name="X"> to a readable form (with leading/trailing space).
             text = Regex.Replace(
                 text,
                 @"<sprite\s+name\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
-                match => " " + match.Groups[1].Value.ToLower() + " ",
+                match => " " + ReadableSpriteName(match.Groups[1].Value) + " ",
                 RegexOptions.IgnoreCase);
 
-            // Also handle <sprite=X> or <sprite="X"> format
+            // Also handle <sprite=X> / <sprite="X"> format.
             text = Regex.Replace(
                 text,
                 @"<sprite\s*=\s*[""']?([^""'>\s]+)[""']?\s*/?>",
-                match => " " + match.Groups[1].Value.ToLower() + " ",
+                match => " " + ReadableSpriteName(match.Groups[1].Value) + " ",
                 RegexOptions.IgnoreCase);
 
-            // Strip any remaining rich text tags
-            text = Regex.Replace(text, @"<[^>]+>", "");
+            // Replace any remaining rich text tags with a space so adjacent tokens
+            // (e.g. "Fire.<br>Conjure") don't get glued together.
+            text = Regex.Replace(text, @"<[^>]+>", " ");
 
-            // Clean up double spaces
+            // Collapse runs of whitespace, then fix the artifacts that introduces
+            // around sentence punctuation (e.g. "Fire . Conjure" -> "Fire. Conjure").
             text = Regex.Replace(text, @"\s+", " ");
+            text = Regex.Replace(text, @"\s+([.,;:!?])", "$1");
 
-            string result = text.Trim();
-            if (hadSprite)
+            return text.Trim();
+        }
+
+        /// <summary>
+        /// Optional resolver that maps a TMP sprite asset name to a localized display
+        /// name by querying the game's I2.Loc term list at runtime. Wired up by
+        /// LocalizationHelper at startup; left null in unit/contextless calls.
+        /// </summary>
+        public static System.Func<string, string> SpriteNameResolver { get; set; }
+
+        /// <summary>
+        /// Convert a TextMeshPro sprite asset name (PascalCase) into a human-readable
+        /// label. Tries the runtime resolver first (game-localized name), then falls
+        /// back to PascalCase splitting.
+        /// </summary>
+        public static string ReadableSpriteName(string spriteName)
+        {
+            if (string.IsNullOrEmpty(spriteName)) return spriteName;
+
+            try
             {
-                MonsterTrainAccessibility.LogInfo($"CleanSpriteTagsForSpeech output: '{result}'");
+                var resolver = SpriteNameResolver;
+                if (resolver != null)
+                {
+                    string resolved = resolver(spriteName);
+                    if (!string.IsNullOrEmpty(resolved))
+                        return StripRichTextTags(resolved);
+                }
             }
-            return result;
+            catch { }
+
+            string spaced = Regex.Replace(spriteName, "([a-z0-9])([A-Z])", "$1 $2");
+            spaced = Regex.Replace(spaced, "([A-Z]+)([A-Z][a-z])", "$1 $2");
+            return spaced;
         }
 
         /// <summary>

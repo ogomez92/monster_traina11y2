@@ -47,7 +47,15 @@
       "Bash(od -An -tx1 -v \"C:/Program Files \\(x86\\)/Steam/steamapps/common/Monster Train 2/MonsterTrain2_Data/Managed/Assembly-CSharp.dll\")",
       "Bash(od -An -c 'C:/Program Files \\(x86\\)/Steam/steamapps/common/Monster Train 2/MonsterTrain2_Data/Managed/Assembly-CSharp.dll')",
       "Bash(for f:*)",
-      "Bash(do sed:*)"
+      "Bash(do sed:*)",
+      "Bash(curl -s \"https://api.github.com/repos/ogomez92/monster_traina11y2/releases/tags/v1.0.1\")",
+      "Bash(python -c ':*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(git tag:*)",
+      "Bash(curl -s \"https://api.github.com/repos/ogomez92/monster_traina11y2/actions/runs?per_page=1\")",
+      "Bash(awk:*)"
     ]
   }
 }
