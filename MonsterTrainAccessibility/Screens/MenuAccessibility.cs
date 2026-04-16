@@ -427,10 +427,30 @@ namespace MonsterTrainAccessibility.Screens
                 // Reset scroll content tracking when selection changes
                 _lastScrollContent = null;
 
+                // Auto-cancel stale targeting: the game ends floor/unit selection silently
+                // (card plays, mouse click, etc.) without signalling our system. If the
+                // current selection is no longer on a targeting element, drop targeting
+                // state so information hotkeys like R stop being gated out.
+                bool isFloorTargetingElement = currentSelected != null
+                    && currentSelected.name.Contains("Tower")
+                    && currentSelected.name.Contains("Selectable");
+                bool isUnitTargetingElement = currentSelected != null && IsUnitTargetingElement(currentSelected);
+
+                if (!isFloorTargetingElement && MonsterTrainAccessibility.FloorTargeting?.IsTargeting == true)
+                {
+                    MonsterTrainAccessibility.LogInfo("Selection left floor targeting element, force-cancelling FloorTargetingSystem");
+                    MonsterTrainAccessibility.FloorTargeting.ForceCancel();
+                }
+                if (!isUnitTargetingElement && MonsterTrainAccessibility.UnitTargeting?.IsTargeting == true)
+                {
+                    MonsterTrainAccessibility.LogInfo("Selection left unit targeting element, force-cancelling UnitTargetingSystem");
+                    MonsterTrainAccessibility.UnitTargeting.ForceCancel();
+                }
+
                 if (currentSelected != null && UITextHelper.IsActuallyVisible(currentSelected))
                 {
                     // Check if this is floor targeting mode (Tower Selectable = floor selection for playing cards)
-                    if (currentSelected.name.Contains("Tower") && currentSelected.name.Contains("Selectable"))
+                    if (isFloorTargetingElement)
                     {
                         // Activate floor targeting system
                         ActivateFloorTargeting();
@@ -438,7 +458,7 @@ namespace MonsterTrainAccessibility.Screens
                     }
 
                     // Check if this is unit targeting mode (targeting a specific character)
-                    if (IsUnitTargetingElement(currentSelected))
+                    if (isUnitTargetingElement)
                     {
                         ActivateUnitTargeting();
                         return;

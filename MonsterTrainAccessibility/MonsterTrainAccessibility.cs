@@ -39,6 +39,7 @@ namespace MonsterTrainAccessibility
         public static HelpSystem HelpSystem { get; private set; }
         public static FloorTargetingSystem FloorTargeting { get; private set; }
         public static UnitTargetingSystem UnitTargeting { get; private set; }
+        public static AbilityFocusSystem AbilityFocus { get; private set; }
 
         // Screen-specific handlers
         public static MenuAccessibility MenuHandler { get; private set; }
@@ -254,6 +255,9 @@ namespace MonsterTrainAccessibility
 
                 Log.LogInfo("CreateHandlers: Adding UnitTargetingSystem");
                 UnitTargeting = handlerGO.AddComponent<UnitTargetingSystem>();
+
+                Log.LogInfo("CreateHandlers: Adding AbilityFocusSystem");
+                AbilityFocus = handlerGO.AddComponent<AbilityFocusSystem>();
 
                 _handlersCreated = true;
                 Log.LogInfo("CreateHandlers: Complete");

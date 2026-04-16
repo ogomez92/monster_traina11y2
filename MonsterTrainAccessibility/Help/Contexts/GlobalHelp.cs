@@ -19,9 +19,9 @@ namespace MonsterTrainAccessibility.Help.Contexts
         public string GetHelpText()
         {
             return "F1: Context-sensitive help. " +
-                   "C: Re-read current item. " +
-                   "T: Read all text on screen. " +
-                   "V: Cycle verbosity level. " +
+                   "F5: Re-read current item. " +
+                   "F6: Read all text on screen. " +
+                   "F11: Cycle verbosity level. " +
                    "Arrow keys: Navigate menus. " +
                    "Enter or Space: Activate selected item. " +
                    "Escape: Go back or cancel.";

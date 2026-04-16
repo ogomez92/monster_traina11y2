@@ -23,8 +23,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
                    "Up/Down arrows: Move between rings. " +
                    "Left/Right arrows: Choose between left path, center battle, or right path. " +
                    "Enter: Select and go to the focused node. " +
-                   "C: Re-read current node details. " +
-                   "T: Read all available choices for this ring. " +
+                   "F5: Re-read current node details. " +
+                   "F6: Read all available choices for this ring. " +
                    "Node types: Battle (required fight), Merchant (buy/sell cards), " +
                    "Artifact (gain relic), Upgrade (enhance cards), Event (random encounter), " +
                    "Concealed Caverns (mystery reward), Pyre Remains (restore pyre health), " +

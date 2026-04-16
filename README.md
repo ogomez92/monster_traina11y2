@@ -41,12 +41,14 @@ No mod loader subscription or in-game toggle is required — BepInEx is bundled 
 | Escape | Go back / Cancel |
 
 ### Information Hotkeys
+Most mod hotkeys are on F-keys so they never clash with the game's letter keys. F4 and F8 are left alone because the game uses them (Cheat menu and Feedback). R is used for resources since the game doesn't bind it.
+
 | Key | Action |
 |-----|--------|
 | F1 | Context-sensitive help (shows available keys for current screen) |
-| C | Re-read current focused item |
-| T | Read all text on screen (patch notes, descriptions, etc.) |
-| V | Cycle verbosity level (Minimal/Normal/Verbose) |
+| F5 | Re-read current focused item |
+| F6 | Read all text on screen (patch notes, descriptions, etc.) |
+| F11 | Cycle verbosity level (Minimal/Normal/Verbose) |
 
 ### Automatic Text Reading
 
@@ -58,10 +60,16 @@ The mod automatically reads text when:
 ### Battle Hotkeys
 | Key | Action |
 |-----|--------|
-| H | Read all cards in hand |
-| L | Read all floor information (L for Levels) |
-| N | Read enemy information and intents (N for eNemies) |
-| R | Read resources (ember, pyre health) |
+| F7 | Read all cards in hand |
+| F2 | Read all floor information |
+| F3 | Read enemy information and intents |
+| R | Read resources (ember, gold, pyre health, pyre attack) |
+| F12 | End turn (redundant alternative; game's native key still works) |
+| O | Next ability (Pyre and unit abilities including champion) |
+| P | Previous ability |
+| Enter | Activate the selected ability |
+| L | Game's card preview — also re-reads the selected card |
+| N | Game's speed toggle — announces the new speed |
 
 ### Floor Targeting (when playing a card that requires floor selection)
 | Key | Action |
@@ -129,10 +137,10 @@ You can edit this file to customize:
 
 The battle screen uses the game's native navigation. Use hotkeys for information:
 
-- Press **H** to hear all cards in your hand
-- Press **L** to hear floor status and units (L for Levels)
-- Press **N** to hear enemy information (N for eNemies)
-- Press **R** to hear ember and pyre health
+- Press **F7** to hear all cards in your hand
+- Press **F2** to hear floor status and units
+- Press **F3** to hear enemy information
+- Press **R** to hear ember, gold, pyre health, and pyre attack
 - Press **F1** for context-sensitive help listing all available keys
 
 ### Playing Cards
@@ -149,10 +157,10 @@ The battle screen uses the game's native navigation. Use hotkeys for information
 1. **Press F1 for Help**: On any screen, press F1 to hear all available keyboard shortcuts for that context
 2. **Start Simple**: Begin with the tutorial to learn the game flow
 3. **Read Text**: Press T to read patch notes, event descriptions, or any screen text
-4. **Use Battle Hotkeys**: H, L, N, R provide quick status updates during battle
+4. **Use Battle Hotkeys**: F7 (hand), F2 (floors), F3 (enemies), R (resources) provide quick status updates during battle
 5. **Check Ember**: Press R regularly to know your available resources
-6. **Enemy Intents**: Press N to hear what enemies plan to do next turn
-7. **Re-read Items**: Press C to re-read the currently focused menu item
+6. **Enemy Intents**: Press F3 to hear what enemies plan to do next turn
+7. **Re-read Items**: Press F5 to re-read the currently focused menu item
 
 ## Troubleshooting
 

@@ -17,6 +17,10 @@ namespace MonsterTrainAccessibility.Patches
         private static MethodInfo _localizeMethod;
         private static bool _localizationInitialized;
 
+        // Cached StatusEffectManager.GetLocalizedName
+        private static MethodInfo _getLocalizedNameMethod;
+        private static bool _getLocalizedNameSearched;
+
         public static string GetUnitName(object characterState)
         {
             if (characterState == null) return "Unit";
@@ -178,12 +182,17 @@ namespace MonsterTrainAccessibility.Patches
             return "Artifact";
         }
 
-        public static string CleanStatusName(string statusId)
+        public static string CleanStatusName(string statusId, int numStacks = 1)
         {
             if (string.IsNullOrEmpty(statusId))
                 return "effect";
 
-            // Try to get the localized name from the game's status effect system
+            // Try StatusEffectManager.GetLocalizedName first (the game's own API)
+            string gameName = GetLocalizedNameViaManager(statusId, numStacks);
+            if (!string.IsNullOrEmpty(gameName))
+                return gameName;
+
+            // Try dictionary-based lookup as fallback
             string localizedName = GetLocalizedStatusName(statusId);
             if (!string.IsNullOrEmpty(localizedName))
                 return localizedName;
@@ -196,6 +205,37 @@ namespace MonsterTrainAccessibility.Patches
 
             name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
             return name.ToLower().Trim();
+        }
+
+        private static string GetLocalizedNameViaManager(string statusId, int numStacks)
+        {
+            try
+            {
+                if (!_getLocalizedNameSearched)
+                {
+                    _getLocalizedNameSearched = true;
+                    var semType = HarmonyLib.AccessTools.TypeByName("StatusEffectManager");
+                    if (semType != null)
+                    {
+                        _getLocalizedNameMethod = semType.GetMethod("GetLocalizedName",
+                            new[] { typeof(string), typeof(int), typeof(bool), typeof(bool), typeof(bool) });
+                    }
+                }
+
+                if (_getLocalizedNameMethod != null)
+                {
+                    var result = _getLocalizedNameMethod.Invoke(null,
+                        new object[] { statusId, numStacks, false, false, false }) as string;
+                    if (!string.IsNullOrEmpty(result))
+                    {
+                        result = TextUtilities.StripRichTextTags(result);
+                        result = TextUtilities.CleanSpriteTagsForSpeech(result);
+                        return result.Trim();
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
 
         private static string GetLocalizedStatusName(string statusId)

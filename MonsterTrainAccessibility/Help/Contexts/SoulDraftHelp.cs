@@ -13,7 +13,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
 
         public string GetHelpText()
         {
-            return "Left and Right arrows: Browse available souls. Enter: Select a soul. Escape: Cancel. C: Re-read current soul. F1: Help.";
+            return "Left and Right arrows: Browse available souls. Enter: Select a soul. Escape: Cancel. F5: Re-read current soul. F1: Help.";
         }
     }
 }

@@ -38,8 +38,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Arrow keys: Browse cards in your deck. " +
                    "Enter or Space: View card details. " +
-                   "C: Re-read current card. " +
-                   "T: Read all cards (may be long). " +
+                   "F5: Re-read current card. " +
+                   "F6: Read all cards (may be long). " +
                    "Tab: Sort or filter cards. " +
                    "Escape: Close deck view.";
         }

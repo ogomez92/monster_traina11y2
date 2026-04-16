@@ -24,9 +24,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
             return @"Shop Controls:
 Arrow keys: Browse shop items
 Enter: Purchase selected item
-C: Re-read current item and price
-G: Read current gold
-T: Read all text on screen
+F5: Re-read current item and price
+F6: Read all text on screen
 Escape: Leave shop";
         }
     }

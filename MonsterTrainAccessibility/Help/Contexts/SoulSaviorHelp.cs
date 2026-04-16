@@ -13,7 +13,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
 
         public string GetHelpText()
         {
-            return "Arrow keys: Navigate the map. Enter: Select a node. Escape: Go back. C: Re-read current item. F1: Help.";
+            return "Arrow keys: Navigate the map. Enter: Select a node. Escape: Go back. F5: Re-read current item. F1: Help.";
         }
     }
 }

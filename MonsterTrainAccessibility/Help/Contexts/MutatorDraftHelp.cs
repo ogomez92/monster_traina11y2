@@ -13,7 +13,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
 
         public string GetHelpText()
         {
-            return "Up and Down arrows: Browse mutators. Enter: Select or toggle a mutator. Escape: Confirm and continue. C: Re-read current mutator. F1: Help.";
+            return "Up and Down arrows: Browse mutators. Enter: Select or toggle a mutator. Escape: Confirm and continue. F5: Re-read current mutator. F1: Help.";
         }
     }
 }

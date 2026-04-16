@@ -19,8 +19,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
             return "Tab: Switch between categories (Cards, Clans, Artifacts, etc.). " +
                    "Arrow keys: Browse items in current category. " +
                    "Enter or Space: View item details. " +
-                   "C: Re-read current item. " +
-                   "T: Read all items on screen. " +
+                   "F5: Re-read current item. " +
+                   "F6: Read all items on screen. " +
                    "Escape: Return to previous menu.";
         }
     }

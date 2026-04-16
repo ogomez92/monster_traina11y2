@@ -14,6 +14,10 @@ namespace MonsterTrainAccessibility.Patches.Combat
         private static string _lastAnnouncedEffect = "";
         private static float _lastAnnouncedTime = 0f;
 
+        // Cached reflection for StatusEffectManager.GetLocalizedName
+        private static MethodInfo _getLocalizedNameMethod;
+        private static bool _getLocalizedNameSearched;
+
         public static void TryPatch(Harmony harmony)
         {
             try
@@ -86,8 +90,8 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 _lastAnnouncedEffect = effectKey;
                 _lastAnnouncedTime = currentTime;
 
-                // Make the status ID more readable (e.g., "armor" instead of "Armor_StatusId")
-                string effectName = CleanStatusName(statusId);
+                // Get the localized name from the game (e.g., "Valor" instead of "pyreattackpower")
+                string effectName = CleanStatusName(statusId, numStacks);
 
                 MonsterTrainAccessibility.BattleHandler?.OnStatusEffectApplied(unitName, effectName, numStacks);
             }
@@ -133,21 +137,63 @@ namespace MonsterTrainAccessibility.Patches.Combat
             return "Unit";
         }
 
-        private static string CleanStatusName(string statusId)
+        private static string CleanStatusName(string statusId, int numStacks = 1)
         {
             if (string.IsNullOrEmpty(statusId))
                 return "effect";
 
-            // Remove common suffixes
+            // Try the game's own StatusEffectManager.GetLocalizedName first
+            string localized = GetLocalizedStatusName(statusId, numStacks);
+            if (!string.IsNullOrEmpty(localized))
+                return localized;
+
+            // Fallback: basic string cleanup
             string name = statusId
                 .Replace("_StatusId", "")
                 .Replace("StatusId", "")
                 .Replace("_", " ");
 
-            // Add space before capital letters (camelCase to words)
             name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
 
             return name.ToLower().Trim();
+        }
+
+        private static string GetLocalizedStatusName(string statusId, int numStacks)
+        {
+            try
+            {
+                if (!_getLocalizedNameSearched)
+                {
+                    _getLocalizedNameSearched = true;
+                    var semType = AccessTools.TypeByName("StatusEffectManager");
+                    if (semType != null)
+                    {
+                        // GetLocalizedName(string statusId, int stackCount, bool inBold, bool showStacks, bool inCardBodyText)
+                        _getLocalizedNameMethod = semType.GetMethod("GetLocalizedName",
+                            new[] { typeof(string), typeof(int), typeof(bool), typeof(bool), typeof(bool) });
+                        MonsterTrainAccessibility.LogInfo(
+                            $"StatusEffectManager.GetLocalizedName found: {_getLocalizedNameMethod != null}");
+                    }
+                }
+
+                if (_getLocalizedNameMethod != null)
+                {
+                    // inBold=false, showStacks=false (we announce stacks separately), inCardBodyText=false
+                    var result = _getLocalizedNameMethod.Invoke(null,
+                        new object[] { statusId, numStacks, false, false, false }) as string;
+                    if (!string.IsNullOrEmpty(result))
+                    {
+                        result = Utilities.TextUtilities.StripRichTextTags(result);
+                        result = Utilities.TextUtilities.CleanSpriteTagsForSpeech(result);
+                        return result.Trim();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetLocalizedStatusName error for '{statusId}': {ex.Message}");
+            }
+            return null;
         }
     }
 }

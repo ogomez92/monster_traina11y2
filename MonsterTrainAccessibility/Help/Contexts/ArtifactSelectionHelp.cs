@@ -36,8 +36,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Arrow keys: Browse artifact choices. " +
                    "Enter or Space: Select artifact. " +
-                   "C: Re-read current artifact. " +
-                   "T: Read all artifact options. " +
+                   "F5: Re-read current artifact. " +
+                   "F6: Read all artifact options. " +
                    "Artifacts provide passive bonuses for the entire run.";
         }
     }

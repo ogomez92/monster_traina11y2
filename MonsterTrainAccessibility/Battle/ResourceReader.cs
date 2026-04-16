@@ -45,6 +45,16 @@ namespace MonsterTrainAccessibility.Battle
                     sb.Append($"Pyre: {pyreHP} of {maxPyreHP}. ");
                 }
 
+                int pyreAttack = GetPyreAttack();
+                int pyreNumAttacks = GetPyreNumAttacks();
+                if (pyreAttack >= 0)
+                {
+                    if (pyreNumAttacks > 1)
+                        sb.Append($"Pyre attack: {pyreAttack} times {pyreNumAttacks}. ");
+                    else
+                        sb.Append($"Pyre attack: {pyreAttack}. ");
+                }
+
                 var hand = _handReader.GetHandCards();
                 if (hand != null)
                 {
@@ -98,6 +108,32 @@ namespace MonsterTrainAccessibility.Battle
             {
                 var result = _cache.GetMaxTowerHPMethod?.Invoke(_cache.SaveManager, null);
                 if (result is int hp) return hp;
+            }
+            catch { }
+            return -1;
+        }
+
+        public int GetPyreAttack()
+        {
+            if (_cache.SaveManager == null) _cache.FindManagers();
+            try
+            {
+                var method = _cache.SaveManager?.GetType().GetMethod("GetDisplayedPyreAttack", Type.EmptyTypes);
+                var result = method?.Invoke(_cache.SaveManager, null);
+                if (result is int atk) return atk;
+            }
+            catch { }
+            return -1;
+        }
+
+        public int GetPyreNumAttacks()
+        {
+            if (_cache.SaveManager == null) _cache.FindManagers();
+            try
+            {
+                var method = _cache.SaveManager?.GetType().GetMethod("GetDisplayedPyreNumAttacks", Type.EmptyTypes);
+                var result = method?.Invoke(_cache.SaveManager, null);
+                if (result is int n) return n;
             }
             catch { }
             return -1;

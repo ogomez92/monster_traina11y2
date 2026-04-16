@@ -18,8 +18,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Left and Right arrows: Browse available cards. " +
                    "Enter: Select and add card to deck. " +
-                   "C: Re-read current card details. " +
-                   "T: Read all available cards. " +
+                   "F5: Re-read current card details. " +
+                   "F6: Read all available cards. " +
                    "Escape: Skip reward (if allowed).";
         }
     }

@@ -37,8 +37,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
             return "Arrow keys: Browse available challenges. " +
                    "Enter or Space: View challenge details or start challenge. " +
                    "Tab: Switch between daily and weekly challenges. " +
-                   "C: Re-read current challenge. " +
-                   "T: Read challenge rules and rewards. " +
+                   "F5: Re-read current challenge. " +
+                   "F6: Read challenge rules and rewards. " +
                    "Escape: Return to main menu.";
         }
     }

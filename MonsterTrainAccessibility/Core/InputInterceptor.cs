@@ -20,6 +20,53 @@ namespace MonsterTrainAccessibility.Core
         /// </summary>
         private float _inputCooldown = 0f;
         private const float INPUT_COOLDOWN_TIME = 0.15f;
+        private bool _announceGameSpeedNextFrame = false;
+
+        private void AnnounceGameSpeed()
+        {
+            try
+            {
+                var battle = MonsterTrainAccessibility.BattleHandler;
+                var cacheField = battle?.GetType().GetField("_cache",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var cache = cacheField?.GetValue(battle) as Battle.BattleManagerCache;
+                var saveManager = cache?.SaveManager;
+                if (saveManager == null)
+                {
+                    // Fallback to finding SaveManager on any GameObject in scene.
+                    foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        var t = asm.GetType("SaveManager");
+                        if (t != null)
+                        {
+                            saveManager = UnityEngine.Object.FindObjectOfType(t);
+                            break;
+                        }
+                    }
+                }
+                if (saveManager == null) return;
+
+                var method = saveManager.GetType().GetMethod("GetActiveGameSpeed", System.Type.EmptyTypes);
+                var result = method?.Invoke(saveManager, null);
+                if (result == null) return;
+
+                string label;
+                switch (result.ToString())
+                {
+                    case "Normal": label = "Normal speed"; break;
+                    case "Fast": label = "Fast speed"; break;
+                    case "Ultra": label = "Ultra speed"; break;
+                    case "SuperUltra": label = "Super ultra speed"; break;
+                    case "Instant": label = "Instant speed"; break;
+                    default: label = $"Speed {result}"; break;
+                }
+                MonsterTrainAccessibility.ScreenReader?.Speak(label, false);
+            }
+            catch (System.Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"AnnounceGameSpeed error: {ex.Message}");
+            }
+        }
 
         private void Update()
         {
@@ -29,6 +76,27 @@ namespace MonsterTrainAccessibility.Core
             // Check if game has focus
             if (!Application.isFocused)
                 return;
+
+            // Passive listeners for game-native keys. These always run — we don't
+            // consume the input, we just announce what the game did so screen-reader
+            // users know it worked.
+            if (Input.GetKeyDown(KeyCode.N))
+            {
+                // Game speed toggle runs during its own Update; wait one frame then read.
+                _announceGameSpeedNextFrame = true;
+            }
+            else if (_announceGameSpeedNextFrame)
+            {
+                _announceGameSpeedNextFrame = false;
+                AnnounceGameSpeed();
+            }
+
+            if (Input.GetKeyDown(KeyCode.L))
+            {
+                // Game shows the card preview for the hovered/selected card — re-read
+                // the current selection so the player hears the full card details.
+                MonsterTrainAccessibility.MenuHandler?.RereadCurrentSelection();
+            }
 
             // Update cooldown
             if (_inputCooldown > 0)
@@ -43,7 +111,7 @@ namespace MonsterTrainAccessibility.Core
                 return;
 
             // Skip most input handling if floor or unit targeting is active
-            // (Targeting systems handle their own input)
+            // (those systems own their input).
             if (FloorTargetingSystem.Instance?.IsTargeting == true ||
                 UnitTargetingSystem.Instance?.IsTargeting == true)
             {
@@ -89,7 +157,9 @@ namespace MonsterTrainAccessibility.Core
             }
             else if (Input.GetKeyDown(config.ReadResourcesKey.Value))
             {
+                MonsterTrainAccessibility.LogInfo($"ReadResources key ({config.ReadResourcesKey.Value}) pressed");
                 ReadResources();
+                _inputCooldown = INPUT_COOLDOWN_TIME;
             }
             else if (Input.GetKeyDown(config.ReadGoldKey.Value))
             {

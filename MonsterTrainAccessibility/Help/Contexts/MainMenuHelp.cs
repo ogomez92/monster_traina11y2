@@ -18,8 +18,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Up and Down arrows: Navigate menu options. " +
                    "Enter: Select highlighted option. " +
-                   "C: Re-read current option. " +
-                   "T: Read all menu options. " +
+                   "F5: Re-read current option. " +
+                   "F6: Read all menu options. " +
                    "Escape: Exit game or go back.";
         }
     }

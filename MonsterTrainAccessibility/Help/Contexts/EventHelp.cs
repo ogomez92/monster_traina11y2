@@ -18,8 +18,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Up and Down arrows: Browse event choices. " +
                    "Enter: Select choice. " +
-                   "C: Re-read current choice and effects. " +
-                   "T: Read full event text and all choices.";
+                   "F5: Re-read current choice and effects. " +
+                   "F6: Read full event text and all choices.";
         }
     }
 }

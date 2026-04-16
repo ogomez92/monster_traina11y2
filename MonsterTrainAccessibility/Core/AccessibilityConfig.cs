@@ -127,58 +127,66 @@ namespace MonsterTrainAccessibility.Core
             ReadCurrentKey = config.Bind(
                 "Keys.Information",
                 "ReadCurrent",
-                KeyCode.C,
-                "Key to re-read the currently focused item"
+                KeyCode.F5,
+                "Key to re-read the currently focused item. Default moved off C because the game uses C for Discard Pile."
             );
+            if (ReadCurrentKey.Value == KeyCode.C) ReadCurrentKey.Value = KeyCode.F5;
 
             ReadTextKey = config.Bind(
                 "Keys.Information",
                 "ReadText",
-                KeyCode.T,
+                KeyCode.F6,
                 "Key to read all text content on screen (patch notes, descriptions, etc.)"
             );
+            if (ReadTextKey.Value == KeyCode.T) ReadTextKey.Value = KeyCode.F6;
 
             ReadHandKey = config.Bind(
                 "Keys.Information",
                 "ReadHand",
-                KeyCode.H,
-                "Key to read all cards in hand"
+                KeyCode.F7,
+                "Key to read all cards in hand. Default moved off H because the game uses H for Dragon's Hoard."
             );
+            if (ReadHandKey.Value == KeyCode.H) ReadHandKey.Value = KeyCode.F7;
 
             ReadFloorsKey = config.Bind(
                 "Keys.Information",
                 "ReadFloors",
-                KeyCode.L,
-                "Key to read all floor information (L for Levels). Note: F conflicts with game's Toggle Unit Details"
+                KeyCode.F2,
+                "Key to read all floor information. Default moved off L because the game uses L for Show Card Preview."
             );
+            // Migrate existing configs that still point at the old L default.
+            if (ReadFloorsKey.Value == KeyCode.L) ReadFloorsKey.Value = KeyCode.F2;
 
             ReadEnemiesKey = config.Bind(
                 "Keys.Information",
                 "ReadEnemies",
-                KeyCode.N,
-                "Key to read enemy information and intents (N for eNemies). Note: E conflicts with game's End Turn"
+                KeyCode.F3,
+                "Key to read enemy information and intents. Default moved off N because the game uses N for Game Speed Toggle."
             );
+            if (ReadEnemiesKey.Value == KeyCode.N) ReadEnemiesKey.Value = KeyCode.F3;
 
             ReadResourcesKey = config.Bind(
                 "Keys.Information",
                 "ReadResources",
                 KeyCode.R,
-                "Key to read ember, gold, and pyre health"
+                "Key to read ember, gold, pyre health and pyre attack"
             );
 
             ReadGoldKey = config.Bind(
                 "Keys.Information",
                 "ReadGold",
-                KeyCode.G,
-                "Key to read current gold amount"
+                KeyCode.None,
+                "Deprecated - gold is now announced by ReadResources. Leave unset."
             );
+            if (ReadGoldKey.Value == KeyCode.G) ReadGoldKey.Value = KeyCode.None;
 
             ToggleVerbosityKey = config.Bind(
                 "Keys.Information",
                 "ToggleVerbosity",
-                KeyCode.V,
-                "Key to cycle through verbosity levels"
+                KeyCode.F11,
+                "Key to cycle through verbosity levels. Default moved off V because the game uses V for Exhaust Pile."
             );
+            if (ToggleVerbosityKey.Value == KeyCode.V) ToggleVerbosityKey.Value = KeyCode.F11;
 
             HelpKey = config.Bind(
                 "Keys.Information",
@@ -191,9 +199,10 @@ namespace MonsterTrainAccessibility.Core
             EndTurnKey = config.Bind(
                 "Keys.Actions",
                 "EndTurn",
-                KeyCode.E,
-                "Key to end your turn during battle"
+                KeyCode.F12,
+                "Key to end your turn during battle. The game also uses E natively; this is a redundant F-key binding."
             );
+            if (EndTurnKey.Value == KeyCode.E) EndTurnKey.Value = KeyCode.F12;
 
             // ========== Announcement Preferences ==========
             AnnounceCardDraws = config.Bind(

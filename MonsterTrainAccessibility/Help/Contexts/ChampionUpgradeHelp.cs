@@ -36,8 +36,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Arrow keys: Browse upgrade options. " +
                    "Enter or Space: Select upgrade. " +
-                   "C: Re-read current upgrade. " +
-                   "T: Read all upgrade options. " +
+                   "F5: Re-read current upgrade. " +
+                   "F6: Read all upgrade options. " +
                    "Each upgrade permanently enhances your champion.";
         }
     }

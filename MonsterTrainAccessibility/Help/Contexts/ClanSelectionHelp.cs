@@ -18,8 +18,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Left and Right arrows: Browse clans. " +
                    "Enter: Select highlighted clan. " +
-                   "C: Re-read current clan name and description. " +
-                   "T: Read all available clans. " +
+                   "F5: Re-read current clan name and description. " +
+                   "F6: Read all available clans. " +
                    "Escape: Return to main menu.";
         }
     }

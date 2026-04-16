@@ -18,8 +18,8 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Arrow keys: Browse reward options. " +
                    "Enter or Space: Select reward. " +
-                   "C: Re-read current reward. " +
-                   "T: Read all rewards. " +
+                   "F5: Re-read current reward. " +
+                   "F6: Read all rewards. " +
                    "Escape: Skip remaining rewards.";
         }
     }

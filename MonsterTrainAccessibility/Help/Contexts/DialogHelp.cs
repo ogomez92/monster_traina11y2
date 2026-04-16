@@ -18,7 +18,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
         {
             return "Enter: Confirm or accept. " +
                    "Escape: Cancel or dismiss. " +
-                   "C: Re-read dialog text. " +
+                   "F5: Re-read dialog text. " +
                    "Arrow keys: Navigate between buttons.";
         }
     }

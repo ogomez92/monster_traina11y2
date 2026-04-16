@@ -55,7 +55,9 @@
       "Bash(git push:*)",
       "Bash(git tag:*)",
       "Bash(curl -s \"https://api.github.com/repos/ogomez92/monster_traina11y2/actions/runs?per_page=1\")",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(pandoc --version)",
+      "Bash(pandoc README.md -f gfm -t html -s --metadata title=\"Monster Train Accessibility Mod\" -o release/readme.html)"
     ]
   }
 }

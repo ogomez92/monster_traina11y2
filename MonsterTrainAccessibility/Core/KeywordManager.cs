@@ -15,6 +15,31 @@ namespace MonsterTrainAccessibility.Core
         private static Dictionary<string, string> _keywords;
         private static MethodInfo _localizeMethod;
         private static bool _localizeMethodSearched;
+        private static readonly HashSet<string> _announcedKeywords =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Returns a keyword announcement string, including its description the first
+        /// time in the session and just the name on subsequent calls. If no keyword
+        /// entry exists, returns the name unchanged.
+        /// </summary>
+        public static string GetKeywordAnnouncement(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return name;
+            var dict = GetKeywords();
+            bool firstTime = _announcedKeywords.Add(name);
+            if (firstTime && dict != null && dict.TryGetValue(name, out var full) && !string.IsNullOrEmpty(full))
+                return full;
+            return name;
+        }
+
+        /// <summary>
+        /// Reset the per-session "already announced" set. Call on battle entry.
+        /// </summary>
+        public static void ResetAnnouncedKeywords()
+        {
+            _announcedKeywords.Clear();
+        }
 
         /// <summary>
         /// Get the keyword dictionary, building it on first access.

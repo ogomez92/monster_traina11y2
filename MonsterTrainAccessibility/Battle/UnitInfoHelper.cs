@@ -156,6 +156,58 @@ namespace MonsterTrainAccessibility.Battle
         }
 
         /// <summary>
+        /// Get status effects on a unit as a list of (name, stacks) pairs.
+        /// Lets callers format them with keyword descriptions or their own layout.
+        /// </summary>
+        public static List<KeyValuePair<string, int>> GetUnitStatusEffectsRaw(object characterState)
+        {
+            var result = new List<KeyValuePair<string, int>>();
+            try
+            {
+                var type = characterState.GetType();
+                var getStatusMethod = type.GetMethods()
+                    .FirstOrDefault(m => m.Name == "GetStatusEffects" && m.GetParameters().Length >= 1);
+
+                if (getStatusMethod == null) return result;
+
+                var parameters = getStatusMethod.GetParameters();
+                var listType = parameters[0].ParameterType;
+                // Ref/out parameters show up as List<...>& — strip the byref wrapper
+                // before instantiating, and pre-create the list in all cases so the
+                // game can populate it regardless of whether the param is out or ref.
+                if (listType.IsByRef) listType = listType.GetElementType();
+                var args = new object[parameters.Length];
+                args[0] = Activator.CreateInstance(listType);
+                for (int i = 1; i < parameters.Length; i++)
+                {
+                    if (parameters[i].ParameterType == typeof(bool))
+                        args[i] = false;
+                    else
+                        args[i] = parameters[i].ParameterType.IsValueType
+                            ? Activator.CreateInstance(parameters[i].ParameterType)
+                            : null;
+                }
+
+                getStatusMethod.Invoke(characterState, args);
+                var statusList = args[0] as System.Collections.IList;
+                if (statusList == null) return result;
+
+                foreach (var statusStack in statusList)
+                {
+                    string name = GetStatusEffectName(statusStack);
+                    if (string.IsNullOrEmpty(name)) continue;
+                    int stacks = GetStatusEffectStacks(statusStack);
+                    result.Add(new KeyValuePair<string, int>(name, stacks));
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetUnitStatusEffectsRaw error: {ex.Message}");
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Get status effects on a unit as a readable string
         /// </summary>
         public static string GetUnitStatusEffects(object characterState)
@@ -173,20 +225,11 @@ namespace MonsterTrainAccessibility.Battle
                     // Create the list parameter
                     var parameters = getStatusMethod.GetParameters();
                     var listType = parameters[0].ParameterType;
+                    if (listType.IsByRef) listType = listType.GetElementType();
 
-                    // Handle out parameter - need to create array for Invoke
+                    // Always pre-create the list so the game can populate it.
                     var args = new object[parameters.Length];
-
-                    // For out parameters, we pass null and get the value back
-                    if (parameters[0].IsOut)
-                    {
-                        args[0] = null;
-                    }
-                    else
-                    {
-                        // Create empty list
-                        args[0] = Activator.CreateInstance(listType);
-                    }
+                    args[0] = Activator.CreateInstance(listType);
 
                     // Fill additional params with defaults
                     for (int i = 1; i < parameters.Length; i++)

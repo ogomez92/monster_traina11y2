@@ -34,6 +34,7 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleEntered()
         {
             IsInBattle = true;
+            KeywordManager.ResetAnnouncedKeywords();
 
             // Create cache and readers
             _cache = new BattleManagerCache();
@@ -43,6 +44,9 @@ namespace MonsterTrainAccessibility.Screens
             _floorReader = new FloorReader(_cache);
             _resourceReader = new ResourceReader(_cache, _handReader);
             _enemyReader = new EnemyReader(_cache, _floorReader);
+
+            // Reset the ability hint so it announces again this battle
+            AbilityFocusSystem.Instance?.ResetHint();
 
             MonsterTrainAccessibility.LogInfo("Battle entered");
             MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Battle started");
@@ -184,6 +188,103 @@ namespace MonsterTrainAccessibility.Screens
             {
                 MonsterTrainAccessibility.LogError($"Error ending turn: {ex.Message}");
                 MonsterTrainAccessibility.ScreenReader?.Queue("Error ending turn");
+            }
+        }
+
+        /// <summary>
+        /// Activate the Pyre's ability by invoking Hud.ActivatePyreAbility via reflection.
+        /// Announces the ability name on press and the reason if activation fails.
+        /// </summary>
+        public void ActivatePyreAbility()
+        {
+            if (!IsInBattle)
+            {
+                MonsterTrainAccessibility.ScreenReader?.Queue("Not in battle");
+                return;
+            }
+
+            try
+            {
+                // Find the pyre heart to describe the ability.
+                object pyreHeart = null;
+                if (_cache?.RoomManager != null)
+                {
+                    var getPyreRoom = _cache.RoomManager.GetType().GetMethod("GetPyreRoom", Type.EmptyTypes);
+                    var pyreRoom = getPyreRoom?.Invoke(_cache.RoomManager, null);
+                    if (pyreRoom != null)
+                    {
+                        var getPyreHeart = pyreRoom.GetType().GetMethod("GetPyreHeart", Type.EmptyTypes);
+                        pyreHeart = getPyreHeart?.Invoke(pyreRoom, null);
+                    }
+                }
+
+                string abilityName = "Pyre ability";
+                if (pyreHeart != null)
+                {
+                    var getAbility = pyreHeart.GetType().GetMethod("GetUnitAbilityCardState", Type.EmptyTypes);
+                    var abilityCard = getAbility?.Invoke(pyreHeart, null);
+                    if (abilityCard != null)
+                    {
+                        var getTitle = abilityCard.GetType().GetMethod("GetTitle", Type.EmptyTypes);
+                        var title = getTitle?.Invoke(abilityCard, null) as string;
+                        if (!string.IsNullOrEmpty(title))
+                            abilityName = Utilities.TextUtilities.StripRichTextTags(title);
+                    }
+                }
+
+                // Find Hud and invoke its private ActivatePyreAbility.
+                Type hudType = null;
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    hudType = asm.GetType("Hud");
+                    if (hudType != null) break;
+                }
+
+                if (hudType == null)
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Could not find Hud", false);
+                    return;
+                }
+
+                var hud = GameObject.FindObjectOfType(hudType);
+                if (hud == null)
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Hud not active", false);
+                    return;
+                }
+
+                var activateMethod = hudType.GetMethod("ActivatePyreAbility",
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Public);
+                if (activateMethod == null)
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Pyre ability method not found", false);
+                    return;
+                }
+
+                var result = activateMethod.Invoke(hud, null);
+                bool success = result is bool b && b;
+                if (success)
+                {
+                    MonsterTrainAccessibility.ScreenReader?.Speak($"Activated {abilityName}", false);
+                }
+                else
+                {
+                    string reason = "not ready";
+                    if (pyreHeart != null)
+                    {
+                        var canActivate = pyreHeart.GetType().GetMethod("CanActivateUnitAbility", Type.EmptyTypes);
+                        var canRes = canActivate?.Invoke(pyreHeart, null);
+                        if (canRes is bool cb && !cb) reason = "on cooldown or not player turn";
+                    }
+                    MonsterTrainAccessibility.ScreenReader?.Speak($"{abilityName} {reason}", false);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ActivatePyreAbility error: {ex}");
+                MonsterTrainAccessibility.ScreenReader?.Speak("Error activating pyre ability", false);
             }
         }
 
@@ -337,7 +438,7 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             string prefix = isEnemy ? "Enemy" : "Your";
-            string floorInfo = userFloor > 0 ? $" on floor {userFloor}" : "";
+            string floorInfo = userFloor > 0 ? $" on {Battle.FloorReader.GetFloorDisplayName(userFloor)}" : "";
             MonsterTrainAccessibility.ScreenReader?.Queue($"{prefix} {unitName} died{floorInfo}");
         }
 
@@ -351,6 +452,7 @@ namespace MonsterTrainAccessibility.Screens
             if (lower == "unit ability available")
             {
                 MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability ready");
+                AbilityFocusSystem.Instance?.OnAbilityBecameAvailable();
                 return;
             }
             if (lower == "cooldown")
@@ -374,13 +476,13 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             string floorName;
-            if (floorIndex <= 0)
+            if (floorIndex < 0)
             {
-                floorName = floorIndex == 0 ? "pyre room" : "the battlefield";
+                floorName = "the battlefield";
             }
             else
             {
-                floorName = $"floor {floorIndex}";
+                floorName = Battle.FloorReader.GetFloorDisplayName(floorIndex);
             }
 
             if (isEnemy)
@@ -419,7 +521,7 @@ namespace MonsterTrainAccessibility.Screens
 
             if (!string.IsNullOrEmpty(text))
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy says: {text}");
+                MonsterTrainAccessibility.ScreenReader?.Queue(text);
             }
         }
 
@@ -486,11 +588,8 @@ namespace MonsterTrainAccessibility.Screens
         {
             if (!IsInBattle) return;
             string verb = ascended ? "ascends" : "descends";
-            string where = null;
-            if (destinationFloor == 0) where = "Pyre";
-            else if (destinationFloor >= 1 && destinationFloor <= 3) where = $"floor {destinationFloor}";
-            string msg = where != null ? $"{unitName} {verb} to {where}" : $"{unitName} {verb}";
-            MonsterTrainAccessibility.ScreenReader?.Queue(msg);
+            string where = Battle.FloorReader.GetFloorDisplayName(destinationFloor);
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} {verb} to {where}");
         }
 
         public void OnEquipmentAdded(string unitName, string equipmentName)

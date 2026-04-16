@@ -59,6 +59,7 @@ namespace MonsterTrainAccessibility.Battle
                         string floorName = GetFloorDisplayName(userFloor);
                         string capacity = GetMonsterCapacityString(room);
                         string attachments = GetRoomAttachmentsString(room);
+                        string corruption = GetRoomCorruptionString(room);
                         var units = UnitInfoHelper.GetUnitsInRoom(room);
 
                         var parts = new List<string>();
@@ -66,6 +67,8 @@ namespace MonsterTrainAccessibility.Battle
                             parts.Add(capacity);
                         if (!string.IsNullOrEmpty(attachments))
                             parts.Add(attachments);
+                        if (!string.IsNullOrEmpty(corruption))
+                            parts.Add(corruption);
 
                         if (units.Count == 0)
                         {
@@ -117,11 +120,37 @@ namespace MonsterTrainAccessibility.Battle
         {
             string name = UnitInfoHelper.GetUnitName(unit, _cache);
             int hp = UnitInfoHelper.GetUnitHP(unit, _cache);
+            int maxHp = UnitInfoHelper.GetUnitMaxHP(unit);
             int attack = UnitInfoHelper.GetUnitAttack(unit, _cache);
             string equipment = UnitInfoHelper.GetUnitEquipment(unit);
-            return string.IsNullOrEmpty(equipment)
-                ? $"{name} {attack}/{hp}"
-                : $"{name} {attack}/{hp} equipped {equipment}";
+
+            var sb = new StringBuilder();
+            sb.Append(name);
+            sb.Append(' ');
+            sb.Append(attack);
+            sb.Append(" attack, ");
+            if (maxHp > 0 && hp < maxHp)
+                sb.Append($"{hp} of {maxHp} health");
+            else
+                sb.Append($"{hp} health");
+
+            if (!string.IsNullOrEmpty(equipment))
+                sb.Append($", equipped {equipment}");
+
+            var effects = UnitInfoHelper.GetUnitStatusEffectsRaw(unit);
+            if (effects.Count > 0)
+            {
+                var effectStrings = new List<string>();
+                foreach (var effect in effects)
+                {
+                    string announcement = Core.KeywordManager.GetKeywordAnnouncement(effect.Key);
+                    effectStrings.Add(effect.Value > 1 ? $"{announcement} {effect.Value}" : announcement);
+                }
+                sb.Append(". ");
+                sb.Append(string.Join("; ", effectStrings));
+            }
+
+            return sb.ToString();
         }
 
         /// <summary>
@@ -139,41 +168,23 @@ namespace MonsterTrainAccessibility.Battle
                 }
 
                 if (_cache.RoomManager == null)
-                {
-                    MonsterTrainAccessibility.LogInfo("GetSelectedFloor: RoomManager is null");
                     return -1;
-                }
 
                 var roomManagerType = _cache.RoomManager.GetType();
                 int roomIndex = -1;
 
-                // GetSelectedRoom() returns an int (room index) directly, not a RoomState object
                 var getSelectedRoomMethod = roomManagerType.GetMethod("GetSelectedRoom", Type.EmptyTypes);
                 if (getSelectedRoomMethod != null)
                 {
                     var result = getSelectedRoomMethod.Invoke(_cache.RoomManager, null);
                     if (result is int idx)
-                    {
                         roomIndex = idx;
-                        MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: GetSelectedRoom() = {roomIndex}");
-                    }
-                    else
-                    {
-                        MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: GetSelectedRoom() returned {result?.GetType().Name ?? "null"}: {result}");
-                    }
-                }
-                else
-                {
-                    MonsterTrainAccessibility.LogInfo("GetSelectedFloor: GetSelectedRoom method not found");
                 }
 
                 // Convert room index to user floor
-                // Room 0 = Floor 3 (top), Room 1 = Floor 2, Room 2 = Floor 1 (bottom), Room 3 = Pyre (floor 0)
                 if (roomIndex >= 0 && roomIndex <= 3)
                 {
-                    int userFloor = roomIndex == 3 ? 0 : roomIndex + 1; // room 0=bottom (1), 1=mid (2), 2=top (3), 3=pyre (0)
-                    MonsterTrainAccessibility.LogInfo($"GetSelectedFloor: Converting room {roomIndex} to floor {userFloor}");
-                    return userFloor;
+                    return roomIndex == 3 ? 0 : roomIndex + 1;
                 }
 
                 return -1;
@@ -193,23 +204,13 @@ namespace MonsterTrainAccessibility.Battle
             if (_cache.RoomManager == null || _cache.GetRoomMethod == null)
             {
                 _cache.FindManagers();
-                if (_cache.RoomManager == null)
-                {
-                    MonsterTrainAccessibility.LogInfo("GetRoom: RoomManager is null");
+                if (_cache.RoomManager == null || _cache.GetRoomMethod == null)
                     return null;
-                }
-                if (_cache.GetRoomMethod == null)
-                {
-                    MonsterTrainAccessibility.LogInfo("GetRoom: GetRoomMethod is null");
-                    return null;
-                }
             }
 
             try
             {
-                var room = _cache.GetRoomMethod?.Invoke(_cache.RoomManager, new object[] { roomIndex });
-                MonsterTrainAccessibility.LogInfo($"GetRoom({roomIndex}): {(room != null ? room.GetType().Name : "null")}");
-                return room;
+                return _cache.GetRoomMethod?.Invoke(_cache.RoomManager, new object[] { roomIndex });
             }
             catch (Exception ex)
             {
@@ -237,6 +238,7 @@ namespace MonsterTrainAccessibility.Battle
 
                 string capacity = GetMonsterCapacityString(room);
                 string attachments = GetRoomAttachmentsString(room);
+                string corruption = GetRoomCorruptionString(room);
                 var units = UnitInfoHelper.GetUnitsInRoom(room);
 
                 var parts = new List<string>();
@@ -244,6 +246,8 @@ namespace MonsterTrainAccessibility.Battle
                     parts.Add(capacity);
                 if (!string.IsNullOrEmpty(attachments))
                     parts.Add(attachments);
+                if (!string.IsNullOrEmpty(corruption))
+                    parts.Add(corruption);
 
                 if (units.Count == 0)
                 {
@@ -349,6 +353,67 @@ namespace MonsterTrainAccessibility.Battle
             allUnits.AddRange(GetAllEnemies());
             allUnits.AddRange(GetAllFriendlyUnits());
             return allUnits;
+        }
+
+        // Cached reflection bits for RoomState corruption.
+        private static System.Reflection.FieldInfo _corruptionEnabledField;
+        private static System.Reflection.MethodInfo _getCurrentCorruptionMethod;
+        private static System.Reflection.MethodInfo _getMaxCorruptionMethod;
+
+        /// <summary>
+        /// Report the room's corruption state as "Corrupted X of Y" when corruption is
+        /// enabled on that floor. Returns null when corruption isn't active so the
+        /// announcement stays quiet on floors that don't care.
+        /// </summary>
+        private string GetRoomCorruptionString(object room)
+        {
+            if (room == null) return null;
+            try
+            {
+                var roomType = room.GetType();
+                if (_getCurrentCorruptionMethod == null || _getCurrentCorruptionMethod.DeclaringType != roomType)
+                {
+                    _corruptionEnabledField = roomType.GetField("corruptionEnabled",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    // Prefer GetCurrentNonPreviewCorruption — the preview variant can
+                    // return stale/zero values when not actively previewing a card play.
+                    _getCurrentCorruptionMethod = roomType.GetMethod("GetCurrentNonPreviewCorruption", Type.EmptyTypes)
+                        ?? roomType.GetMethod("GetCurrentCorruption", Type.EmptyTypes);
+                    _getMaxCorruptionMethod = roomType.GetMethod("GetMaxCorruption", Type.EmptyTypes);
+                }
+
+                int current = 0, max = 0;
+                if (_getCurrentCorruptionMethod != null)
+                {
+                    var r = _getCurrentCorruptionMethod.Invoke(room, null);
+                    if (r is int c) current = c;
+                }
+                if (_getMaxCorruptionMethod != null)
+                {
+                    var r = _getMaxCorruptionMethod.Invoke(room, null);
+                    if (r is int m) max = m;
+                }
+
+                bool enabled = false;
+                if (_corruptionEnabledField != null)
+                {
+                    var enabledObj = _corruptionEnabledField.GetValue(room);
+                    if (enabledObj is bool b) enabled = b;
+                }
+
+                // Skip only if this floor has no corruption concept and no current
+                // corruption. Always surface current corruption when > 0 so the
+                // player can tell they're on a corrupted floor.
+                if (!enabled && current <= 0) return null;
+
+                if (max <= 0) return current > 0 ? $"Corrupted {current}" : "Corruption enabled";
+                return $"Corrupted {current} of {max}";
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetRoomCorruptionString error: {ex}");
+                return null;
+            }
         }
 
         // Cached reflection bits for RoomState.Attachments -> TrainRoomAttachmentState.
@@ -493,7 +558,6 @@ namespace MonsterTrainAccessibility.Battle
                         return null;
                     }
                     _teamTypeMonsters = Enum.Parse(teamParamType, "Monsters");
-                    MonsterTrainAccessibility.LogInfo($"GetMonsterCapacityString: resolved team enum {teamParamType.FullName}.Monsters");
                 }
 
                 var info = _getCapacityInfoMethod.Invoke(room, new[] { _teamTypeMonsters });

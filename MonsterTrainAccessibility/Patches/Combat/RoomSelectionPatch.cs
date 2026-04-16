@@ -53,6 +53,17 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 int newRoom = __1;
                 if (newRoom < 0 || newRoom > 3) return;
 
+                // Only announce when the player actually pressed Page Up/Down.
+                // The game re-fires RoomSelectionChanged for lots of internal reasons
+                // (card plays, floor state changes, animations) which spams the reader.
+                if (!UnityEngine.Input.GetKey(UnityEngine.KeyCode.PageUp) &&
+                    !UnityEngine.Input.GetKey(UnityEngine.KeyCode.PageDown))
+                    return;
+
+                // FloorTargetingSystem already handles announcements during card targeting.
+                if (FloorTargetingSystem.Instance != null && FloorTargetingSystem.Instance.IsTargeting)
+                    return;
+
                 // Debounce: same room within 0.15s = ignore (the game often re-fires).
                 float now = UnityEngine.Time.unscaledTime;
                 if (newRoom == _lastAnnouncedRoom && now - _lastAnnouncedTime < 0.15f) return;
