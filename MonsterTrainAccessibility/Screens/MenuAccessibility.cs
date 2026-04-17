@@ -646,6 +646,13 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
+            // 1.8. Check for reward items (post-battle reward screen)
+            text = GetRewardItemText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // 2. Check for map node (battle/event/shop nodes on the map)
             text = MapTextReader.GetMapNodeText(go);
             if (!string.IsNullOrEmpty(text))
@@ -743,6 +750,99 @@ namespace MonsterTrainAccessibility.Screens
         /// <summary>
         /// Get text with additional context for buttons with short labels
         /// </summary>
+        /// <summary>
+        /// Get text from a RewardItemUI (post-battle reward screen items).
+        /// Reads RewardData.RewardTitle and RewardData.RewardDetail via reflection.
+        /// </summary>
+        private string GetRewardItemText(GameObject go)
+        {
+            try
+            {
+                // Walk up hierarchy to find RewardItemUIBase-derived component
+                Component rewardItemUI = null;
+                Transform current = go.transform;
+                while (current != null && rewardItemUI == null)
+                {
+                    foreach (var component in current.GetComponents<Component>())
+                    {
+                        if (component == null) continue;
+                        string typeName = component.GetType().Name;
+                        if (typeName == "RewardItemUI" || typeName == "CardRewardItemUI" ||
+                            typeName == "RelicRewardItemUI" || typeName.Contains("RewardItem"))
+                        {
+                            rewardItemUI = component;
+                            break;
+                        }
+                    }
+                    current = current.parent;
+                }
+
+                if (rewardItemUI == null) return null;
+
+                var uiType = rewardItemUI.GetType();
+
+                // Get rewardState property (defined on RewardItemUIBase)
+                var rewardStateProp = uiType.GetProperty("rewardState",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var rewardState = rewardStateProp?.GetValue(rewardItemUI);
+                if (rewardState == null) return null;
+
+                var stateType = rewardState.GetType();
+
+                // Check if claimed
+                bool claimed = false;
+                var claimedProp = stateType.GetProperty("Claimed", BindingFlags.Public | BindingFlags.Instance);
+                if (claimedProp != null && claimedProp.GetValue(rewardState) is bool c)
+                    claimed = c;
+
+                // Get RewardData
+                var rewardDataProp = stateType.GetProperty("RewardData", BindingFlags.Public | BindingFlags.Instance);
+                var rewardData = rewardDataProp?.GetValue(rewardState);
+                if (rewardData == null) return null;
+
+                var dataType = rewardData.GetType();
+
+                // Get RewardTitle
+                string title = null;
+                var titleProp = dataType.GetProperty("RewardTitle", BindingFlags.Public | BindingFlags.Instance);
+                if (titleProp != null)
+                    title = titleProp.GetValue(rewardData) as string;
+
+                // Get RewardDetail (quantity/specifics)
+                string detail = null;
+                var detailProp = dataType.GetProperty("RewardDetail", BindingFlags.Public | BindingFlags.Instance);
+                if (detailProp != null)
+                    detail = detailProp.GetValue(rewardData) as string;
+
+                // Get RewardDescription
+                string description = null;
+                var descProp = dataType.GetProperty("RewardDescription", BindingFlags.Public | BindingFlags.Instance);
+                if (descProp != null)
+                    description = descProp.GetValue(rewardData) as string;
+
+                if (string.IsNullOrEmpty(title)) return null;
+
+                var sb = new StringBuilder();
+                sb.Append(TextUtilities.CleanSpriteTagsForSpeech(TextUtilities.StripRichTextTags(title)));
+
+                if (!string.IsNullOrEmpty(detail))
+                    sb.Append($", {TextUtilities.StripRichTextTags(detail)}");
+
+                if (!string.IsNullOrEmpty(description))
+                    sb.Append($". {TextUtilities.CleanSpriteTagsForSpeech(TextUtilities.StripRichTextTags(description))}");
+
+                if (claimed)
+                    sb.Append(". Claimed");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting reward item text: {ex.Message}");
+            }
+            return null;
+        }
+
         private string GetTextWithContext(GameObject go)
         {
             string directText = GetDirectText(go);

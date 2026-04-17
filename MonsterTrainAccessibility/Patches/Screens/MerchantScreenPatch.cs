@@ -48,9 +48,10 @@ namespace MonsterTrainAccessibility.Patches.Screens
 
                 // Announce gold when entering shop
                 int gold = InputInterceptor.GetCurrentGold();
-                string goldText = gold >= 0 ? $"You have {gold} gold." : "";
+                string goldLabel = Utilities.ModLocalization.Gold;
+                string goldText = gold >= 0 ? $"{gold} {goldLabel}." : "";
 
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText} Press F1 for help.");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen($"Shop. {goldText} Press F1 for help");
             }
             catch (Exception ex)
             {

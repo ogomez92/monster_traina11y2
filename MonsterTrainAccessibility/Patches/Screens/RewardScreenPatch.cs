@@ -50,7 +50,7 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 ScreenStateTracker.SetScreen(Help.GameScreen.Rewards);
                 MonsterTrainAccessibility.LogInfo("Reward screen entered");
 
-                // Count rewards if possible
+                // Count rewards from pendingRewards (the actual reward list, not UI slots)
                 int rewardCount = CountRewards(__instance);
                 string countText = rewardCount > 0 ? $" {rewardCount} rewards available." : "";
 
@@ -69,18 +69,15 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 if (screen == null) return 0;
                 var screenType = screen.GetType();
 
-                // Look for rewards list
-                var fields = screenType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                foreach (var field in fields)
+                // Use pendingRewards specifically - this is the list of actual rewards
+                // to show, not the UI slots (rewardDetailsUIs) or display list (currentRewards).
+                var pendingField = screenType.GetField("pendingRewards",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (pendingField != null)
                 {
-                    if (field.Name.ToLower().Contains("reward"))
-                    {
-                        var value = field.GetValue(screen);
-                        if (value is IList list)
-                        {
-                            return list.Count;
-                        }
-                    }
+                    var value = pendingField.GetValue(screen);
+                    if (value is IList list)
+                        return list.Count;
                 }
             }
             catch { }

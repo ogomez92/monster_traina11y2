@@ -35,7 +35,7 @@ namespace MonsterTrainAccessibility.Help.Contexts
                    "R: Read resources (ember, gold, pyre health, pyre attack). " +
                    "Enter: Play selected card. Some cards require floor selection. " +
                    "F12: End your turn and start combat phase. " +
-                   "O: Next ability, P: Previous ability (Pyre and unit abilities including champion). Enter: Activate the selected ability. " +
+                   "O: Cycle abilities (Pyre and unit abilities including champion). P: Activate the focused ability. " +
                    "F5: Re-read current selection. " +
                    "F6: Read all visible text on screen. " +
                    "F11: Cycle verbosity level (minimal, normal, verbose). " +

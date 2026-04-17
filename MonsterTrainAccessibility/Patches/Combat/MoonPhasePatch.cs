@@ -70,7 +70,7 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 _lastPhase = phase;
                 _lastTime = now;
 
-                string phaseName = phase == PHASE_NEW ? "New Moon" : phase == PHASE_FULL ? "Full Moon" : null;
+                string phaseName = Utilities.ModLocalization.MoonPhase(phase);
                 if (phaseName == null) return;
 
                 MonsterTrainAccessibility.BattleHandler?.OnMoonPhaseChanged(phaseName);

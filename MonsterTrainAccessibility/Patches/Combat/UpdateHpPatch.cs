@@ -101,17 +101,17 @@ namespace MonsterTrainAccessibility.Patches.Combat
                     _lastAnnounceKey = announceKey;
                     _lastAnnounceTime = currentTime;
 
-                    // Floor prefix: room 0 = floor 3, room 2 = floor 1, room 3 = pyre
+                    // Floor prefix: room 0 = bottom (floor 1), room 1 = middle (floor 2), room 2 = top (floor 3), room 3 = pyre
                     int roomIdx = CharacterStateHelper.GetRoomIndex(__instance);
                     string floorPrefix = "";
                     if (roomIdx >= 0 && roomIdx <= 2)
                     {
-                        int userFloor = 3 - roomIdx;
-                        floorPrefix = $"Floor {userFloor}: ";
+                        int userFloor = roomIdx + 1;
+                        floorPrefix = $"{Battle.FloorReader.GetFloorDisplayName(userFloor)}: ";
                     }
                     else if (roomIdx == 3)
                     {
-                        floorPrefix = "Pyre room: ";
+                        floorPrefix = $"{Battle.FloorReader.GetPyreDisplayName()}: ";
                     }
 
                     // Build announcement
@@ -135,9 +135,10 @@ namespace MonsterTrainAccessibility.Patches.Combat
                     // Death detection
                     if (newHP <= 0)
                     {
-                        int roomIndex = CharacterStateHelper.GetRoomIndex(__instance);
+                        // Convert room index to user floor (room 0=bottom=floor 1, room 2=top=floor 3)
+                        int userFloorForDeath = (roomIdx >= 0 && roomIdx <= 2) ? roomIdx + 1 : -1;
                         RecentDeaths[hash] = currentTime;
-                        MonsterTrainAccessibility.BattleHandler?.OnUnitDied(targetName, isEnemy, roomIndex);
+                        MonsterTrainAccessibility.BattleHandler?.OnUnitDied(targetName, isEnemy, userFloorForDeath);
 
                         // Clean up old death entries
                         var keysToRemove = new List<int>();

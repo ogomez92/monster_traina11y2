@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Utilities;
 using System;
 using System.Reflection;
 
@@ -61,7 +62,7 @@ namespace MonsterTrainAccessibility.Patches.Combat
                         break;
                     case "BossActionPreCombat":
                     case "BossActionPostCombat":
-                        announcement = "Boss action";
+                        announcement = BuildBossActionAnnouncement();
                         break;
                 }
 
@@ -73,6 +74,68 @@ namespace MonsterTrainAccessibility.Patches.Combat
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in combat phase change patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Look up the boss's next queued action via reflection and build an
+        /// announcement like "Boss action. {description}. Targeting {floor}."
+        /// Falls back to plain "Boss action" if lookup fails.
+        /// </summary>
+        private static string BuildBossActionAnnouncement()
+        {
+            const string fallback = "Boss action";
+            try
+            {
+                var agmType = AccessTools.TypeByName("AllGameManagers");
+                var instance = agmType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                var heroManager = agmType?.GetMethod("GetHeroManager", Type.EmptyTypes)?.Invoke(instance, null);
+                if (heroManager == null) return fallback;
+
+                var bossChar = heroManager.GetType()
+                    .GetMethod("GetOuterTrainBossCharacter", Type.EmptyTypes)?.Invoke(heroManager, null);
+                if (bossChar == null) return fallback;
+
+                var bossState = bossChar.GetType()
+                    .GetMethod("GetBossState", Type.EmptyTypes)?.Invoke(bossChar, null);
+                if (bossState == null) return fallback;
+
+                var nextAction = bossState.GetType()
+                    .GetMethod("GetNextBossAction", Type.EmptyTypes)?.Invoke(bossState, null);
+                if (nextAction == null) return fallback;
+
+                var actionType = nextAction.GetType();
+                bool isEmpty = (bool)(actionType.GetMethod("IsEmptyAction", Type.EmptyTypes)?.Invoke(nextAction, null) ?? false);
+                if (isEmpty) return fallback;
+
+                string description = actionType.GetMethod("GetTooltipDescription", Type.EmptyTypes)
+                    ?.Invoke(nextAction, null) as string;
+                description = TextUtilities.CleanSpriteTagsForSpeech(description);
+                description = TextUtilities.StripRichTextTags(description)?.Trim();
+
+                int targetRoomIndex = -1;
+                var getRoomIdx = actionType.GetMethod("GetTargetedRoomIndex", Type.EmptyTypes);
+                if (getRoomIdx != null)
+                {
+                    var result = getRoomIdx.Invoke(nextAction, null);
+                    if (result is int i) targetRoomIndex = i;
+                }
+
+                var parts = new System.Collections.Generic.List<string> { fallback };
+                if (!string.IsNullOrEmpty(description))
+                    parts.Add(description);
+                if (targetRoomIndex >= 0 && targetRoomIndex <= 3)
+                {
+                    int userFloor = targetRoomIndex == 3 ? 0 : targetRoomIndex + 1;
+                    parts.Add($"targeting {Battle.FloorReader.GetFloorDisplayName(userFloor)}");
+                }
+
+                return string.Join(". ", parts);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"BuildBossActionAnnouncement failed: {ex.Message}");
+                return fallback;
             }
         }
     }

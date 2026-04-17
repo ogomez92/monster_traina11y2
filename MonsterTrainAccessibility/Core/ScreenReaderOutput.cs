@@ -92,6 +92,14 @@ namespace MonsterTrainAccessibility.Core
                 if (string.IsNullOrEmpty(text))
                     return;
 
+                // Strip game-side placeholder error fragments that leak into the UI
+                // (e.g. "This should be the blessing description, but something went
+                // wrong.") before they reach the user. Ship this as a hard filter so
+                // no code path can announce them even if the source fix misses a case.
+                text = StripGamePlaceholders(text);
+                if (string.IsNullOrWhiteSpace(text))
+                    return;
+
                 // Log what we're sending to the screen reader
                 MonsterTrainAccessibility.LogInfo($"[TOLK] {text}");
 
@@ -116,6 +124,32 @@ namespace MonsterTrainAccessibility.Core
         public void Queue(string text)
         {
             Speak(text, false);
+        }
+
+        /// <summary>
+        /// Remove known game-side placeholder strings that sometimes leak into the UI
+        /// (e.g. unfilled RelicInfoUI default labels). Always checks substring so a
+        /// trailing price or concatenated suffix can't sneak them through.
+        /// </summary>
+        private static string StripGamePlaceholders(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            // Drop anything sandwiched between the telltale fragments; if the entire
+            // message is placeholder, we return empty and the caller skips output.
+            var pattern = new System.Text.RegularExpressions.Regex(
+                @"This should be.*?something went wrong\.?\s*",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+            string cleaned = pattern.Replace(text, "").Trim();
+
+            // If only a bare "N gold" remains after stripping, that's not useful on its own.
+            if (System.Text.RegularExpressions.Regex.IsMatch(
+                    cleaned, @"^[\.\,\s]*\d+\s*gold\s*\.?$",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                return string.Empty;
+
+            return cleaned;
         }
 
         /// <summary>

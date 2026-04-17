@@ -139,42 +139,16 @@ namespace MonsterTrainAccessibility.Patches
                 string errorName = selectionError.ToString();
                 MonsterTrainAccessibility.LogInfo($"Card play failed with SelectionError: {errorName}");
 
-                // Map known error types to friendly messages
-                // These are guesses based on common game patterns - will need to verify actual enum values
-                switch (errorName.ToLowerInvariant())
-                {
-                    case "notenoughember":
-                    case "notenoughenergy":
-                    case "insufficientenergy":
-                    case "noenergy":
-                        return "Not enough ember";
-                    case "notarget":
-                    case "notargets":
-                    case "novalidtarget":
-                    case "novalidtargets":
-                        return "No valid targets";
-                    case "roomfull":
-                    case "floorfull":
-                    case "nocapacity":
-                        return "Floor is full";
-                    case "unplayable":
-                    case "cardunplayable":
-                        return "Card is unplayable";
-                    case "wrongphase":
-                    case "notplayerphase":
-                        return "Not your turn";
-                    case "noroom":
-                    case "noroomselected":
-                        return "Select a floor first";
-                    case "consumefailed":
-                        return "Cannot consume target";
-                    case "none":
-                    case "success":
-                        return null;
-                    default:
-                        // Return the raw error name if we don't have a friendly translation
-                        return errorName;
-                }
+                if (errorName == "None" || errorName == "Success")
+                    return null;
+
+                // Use the game's own localization: "SelectionError_{EnumName}"
+                string localized = Utilities.LocalizationHelper.Localize($"SelectionError_{errorName}");
+                if (!string.IsNullOrEmpty(localized))
+                    return Utilities.TextUtilities.StripRichTextTags(localized).Trim();
+
+                // Fallback: return cleaned enum name
+                return System.Text.RegularExpressions.Regex.Replace(errorName, "([a-z])([A-Z])", "$1 $2");
             }
             catch (Exception ex)
             {
@@ -301,7 +275,7 @@ namespace MonsterTrainAccessibility.Patches
         {
             try
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue("Deck shuffled");
+                MonsterTrainAccessibility.ScreenReader?.Queue(Utilities.ModLocalization.DeckShuffled());
             }
             catch (Exception ex)
             {

@@ -25,40 +25,41 @@ namespace MonsterTrainAccessibility.Battle
             try
             {
                 var sb = new StringBuilder();
+                string ember = Utilities.ModLocalization.Ember;
+                string gold = Utilities.ModLocalization.Gold;
+                string pyre = Utilities.ModLocalization.Pyre;
+                string hand = Utilities.ModLocalization.HandPileName;
 
                 int energy = GetCurrentEnergy();
                 if (energy >= 0)
                 {
-                    sb.Append($"Ember: {energy}. ");
+                    sb.Append($"{ember}: {energy}. ");
                 }
 
-                int gold = GetGold();
-                if (gold >= 0)
+                int goldAmount = GetGold();
+                if (goldAmount >= 0)
                 {
-                    sb.Append($"Gold: {gold}. ");
+                    sb.Append($"{gold}: {goldAmount}. ");
                 }
 
                 int pyreHP = GetPyreHealth();
                 int maxPyreHP = GetMaxPyreHealth();
-                if (pyreHP >= 0)
-                {
-                    sb.Append($"Pyre: {pyreHP} of {maxPyreHP}. ");
-                }
-
                 int pyreAttack = GetPyreAttack();
                 int pyreNumAttacks = GetPyreNumAttacks();
-                if (pyreAttack >= 0)
+                if (pyreHP >= 0)
                 {
-                    if (pyreNumAttacks > 1)
-                        sb.Append($"Pyre attack: {pyreAttack} times {pyreNumAttacks}. ");
-                    else
-                        sb.Append($"Pyre attack: {pyreAttack}. ");
+                    sb.Append($"{pyre}: {pyreHP}/{maxPyreHP}");
+                    if (pyreAttack >= 0)
+                    {
+                        sb.Append($", {Utilities.ModLocalization.PyreAttack(pyreAttack, pyreNumAttacks)}");
+                    }
+                    sb.Append(". ");
                 }
 
-                var hand = _handReader.GetHandCards();
-                if (hand != null)
+                var handCards = _handReader.GetHandCards();
+                if (handCards != null)
                 {
-                    sb.Append($"Cards in hand: {hand.Count}.");
+                    sb.Append($"{hand}: {handCards.Count}.");
                 }
 
                 MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);

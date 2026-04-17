@@ -25,7 +25,7 @@ namespace MonsterTrainAccessibility.Battle
             try
             {
                 var output = MonsterTrainAccessibility.ScreenReader;
-                output?.Speak("Units on train:", false);
+                output?.Speak("", false);
 
                 bool hasAnyUnits = false;
                 int roomsFound = 0;
@@ -51,7 +51,7 @@ namespace MonsterTrainAccessibility.Battle
                     totalUnits += units.Count;
                     MonsterTrainAccessibility.LogInfo($"Room {roomIndex} (floor {userFloor}) has {units.Count} units");
 
-                    string floorName = $"Floor {userFloor}";
+                    string floorName = Utilities.ModLocalization.FloorName(userFloor);
                     var playerDescriptions = new List<string>();
                     var enemyDescriptions = new List<string>();
 
@@ -76,16 +76,14 @@ namespace MonsterTrainAccessibility.Battle
                         hasAnyUnits = true;
                         output?.Queue($"{floorName}:");
 
-                        // Announce player units first
                         foreach (var desc in playerDescriptions)
                         {
-                            output?.Queue($"  Your unit: {desc}");
+                            output?.Queue($"  {desc}");
                         }
 
-                        // Then announce enemies
                         foreach (var desc in enemyDescriptions)
                         {
-                            output?.Queue($"  Enemy: {desc}");
+                            output?.Queue($"  {desc}");
                         }
                     }
                 }
@@ -104,7 +102,7 @@ namespace MonsterTrainAccessibility.Battle
 
                 if (!hasAnyUnits)
                 {
-                    output?.Queue("No units on the train");
+                    output?.Queue("0");
                 }
             }
             catch (Exception ex)

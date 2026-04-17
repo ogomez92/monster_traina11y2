@@ -251,11 +251,13 @@ namespace MonsterTrainAccessibility.Battle
                         var effects = new List<string>();
                         foreach (var statusStack in statusList)
                         {
-                            string effectName = GetStatusEffectName(statusStack);
+                            string statusId = GetStatusEffectName(statusStack);
                             int stacks = GetStatusEffectStacks(statusStack);
 
-                            if (!string.IsNullOrEmpty(effectName))
+                            if (!string.IsNullOrEmpty(statusId))
                             {
+                                // Localize the raw status ID
+                                string effectName = Patches.CharacterStateHelper.CleanStatusName(statusId, stacks);
                                 if (stacks > 1)
                                     effects.Add($"{effectName} {stacks}");
                                 else
@@ -325,14 +327,15 @@ namespace MonsterTrainAccessibility.Battle
                     {
                         var stateType = state.GetType();
 
-                        // Try GetStatusId
+                        // Try GetStatusId - return the raw ID so callers can
+                        // localize it properly via CleanStatusName / KeywordManager
                         var getIdMethod = stateType.GetMethod("GetStatusId", Type.EmptyTypes);
                         if (getIdMethod != null)
                         {
                             var id = getIdMethod.Invoke(state, null) as string;
                             if (!string.IsNullOrEmpty(id))
                             {
-                                return FormatStatusName(id);
+                                return id;
                             }
                         }
 

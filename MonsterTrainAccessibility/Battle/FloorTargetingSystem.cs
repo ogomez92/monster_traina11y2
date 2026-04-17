@@ -208,13 +208,13 @@ namespace MonsterTrainAccessibility.Battle
             if (newFloor < 1)
             {
                 newFloor = 1;
-                MonsterTrainAccessibility.ScreenReader?.Speak("Bottom floor", false);
+                MonsterTrainAccessibility.ScreenReader?.Speak(Utilities.ModLocalization.FloorName(1), false);
                 return;
             }
             if (newFloor > 3)
             {
                 newFloor = 3;
-                MonsterTrainAccessibility.ScreenReader?.Speak("Top floor", false);
+                MonsterTrainAccessibility.ScreenReader?.Speak(Utilities.ModLocalization.FloorName(3), false);
                 return;
             }
 
@@ -235,7 +235,7 @@ namespace MonsterTrainAccessibility.Battle
             _onConfirm = null;
             _onCancel = null;
 
-            MonsterTrainAccessibility.ScreenReader?.Speak($"Playing on floor {floor}", false);
+            MonsterTrainAccessibility.ScreenReader?.Speak($"Playing on {Utilities.ModLocalization.FloorName(floor)}", false);
             MonsterTrainAccessibility.LogInfo($"Floor targeting confirmed: floor {floor}");
 
             callback?.Invoke(floor);

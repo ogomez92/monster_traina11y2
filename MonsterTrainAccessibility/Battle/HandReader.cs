@@ -30,12 +30,12 @@ namespace MonsterTrainAccessibility.Battle
                 var hand = GetHandCards();
                 if (hand == null || hand.Count == 0)
                 {
-                    MonsterTrainAccessibility.ScreenReader?.Speak("Hand is empty", false);
+                    MonsterTrainAccessibility.ScreenReader?.Speak($"{Utilities.ModLocalization.HandPileName}: 0", false);
                     return;
                 }
 
                 var sb = new StringBuilder();
-                sb.Append($"Hand contains {hand.Count} cards. ");
+                sb.Append($"{Utilities.ModLocalization.HandPileName}: {hand.Count}. ");
 
                 int currentEnergy = GetCurrentEnergy();
                 var verbosity = MonsterTrainAccessibility.AccessibilitySettings.VerbosityLevel.Value;
@@ -50,12 +50,13 @@ namespace MonsterTrainAccessibility.Battle
                     string rarity = GetCardRarity(card);
                     string description = GetCardDescription(card);
 
-                    string playable = (currentEnergy >= 0 && cost > currentEnergy) ? ", unplayable" : "";
+                    string ember = Utilities.ModLocalization.Ember;
+                    string playable = (currentEnergy >= 0 && cost > currentEnergy) ? " ✗" : "";
 
                     // Build card announcement based on verbosity
                     if (verbosity == VerbosityLevel.Minimal)
                     {
-                        sb.Append($"{i + 1}: {name}, {cost} ember{playable}. ");
+                        sb.Append($"{i + 1}: {name}, {cost} {ember}{playable}. ");
                     }
                     else
                     {
@@ -66,7 +67,7 @@ namespace MonsterTrainAccessibility.Battle
                         if (!string.IsNullOrEmpty(cardType)) typeInfoParts.Add(cardType);
                         string typeInfo = typeInfoParts.Count > 0 ? $", {string.Join(" ", typeInfoParts)}" : "";
 
-                        sb.Append($"{i + 1}: {name}{typeInfo}, {cost} ember{playable}. ");
+                        sb.Append($"{i + 1}: {name}{typeInfo}, {cost} {ember}{playable}. ");
 
                         if (!string.IsNullOrEmpty(description))
                         {

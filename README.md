@@ -65,9 +65,8 @@ The mod automatically reads text when:
 | F3 | Read enemy information and intents |
 | R | Read resources (ember, gold, pyre health, pyre attack) |
 | F12 | End turn (redundant alternative; game's native key still works) |
-| O | Next ability (Pyre and unit abilities including champion) |
-| P | Previous ability |
-| Enter | Activate the selected ability |
+| O | Cycle abilities (Pyre and unit abilities including champion) |
+| P | Activate the focused ability |
 | L | Game's card preview — also re-reads the selected card |
 | N | Game's speed toggle — announces the new speed |
 

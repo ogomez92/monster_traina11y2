@@ -230,7 +230,11 @@ namespace MonsterTrainAccessibility.Patches
                     {
                         result = TextUtilities.StripRichTextTags(result);
                         result = TextUtilities.CleanSpriteTagsForSpeech(result);
-                        return result.Trim();
+                        // Strip leaked localization tokens like KEY>>...<<
+                        result = System.Text.RegularExpressions.Regex.Replace(result, @"KEY>>.*?<<", "").Trim();
+                        result = result.TrimEnd(';', ' ');
+                        if (!string.IsNullOrEmpty(result))
+                            return result;
                     }
                 }
             }

@@ -68,13 +68,14 @@ namespace MonsterTrainAccessibility.Core
             int statusCount = LoadStatusEffectKeywords();
             int triggerCount = LoadTriggerKeywords();
             int traitCount = LoadCardTraitKeywords();
+            int effectCount = LoadCardEffectTooltipKeywords();
             int currencyCount = LoadCurrencyKeywords();
             int fallbackCount = LoadFallbackKeywords();
 
             MonsterTrainAccessibility.LogInfo(
                 $"KeywordManager built {_keywords.Count} keywords " +
                 $"(status={statusCount}, triggers={triggerCount}, traits={traitCount}, " +
-                $"currency={currencyCount}, fallback={fallbackCount})");
+                $"effects={effectCount}, currency={currencyCount}, fallback={fallbackCount})");
         }
 
         private static int LoadStatusEffectKeywords()
@@ -207,6 +208,93 @@ namespace MonsterTrainAccessibility.Core
             return count;
         }
 
+        /// <summary>
+        /// Load keywords exposed by card effects via ICardEffectStatuslessTooltip.
+        /// Each implementor returns a base key (via GetTooltipBaseKey) that the game
+        /// localizes as "{base}_TooltipTitle" / "{base}_TooltipText". We can't easily
+        /// instantiate a CardEffectState per type, so we try the likely base keys:
+        /// the bare type name and the common direction suffixes (_Up, _Down).
+        /// This is how MT2's "Advance" / "Descend" (CardEffectBump_Up/_Down) get
+        /// pulled into the keyword dictionary.
+        /// </summary>
+        private static int LoadCardEffectTooltipKeywords()
+        {
+            int count = 0;
+            try
+            {
+                Type interfaceType = FindTypeInAssemblies("ICardEffectStatuslessTooltip");
+                if (interfaceType == null)
+                {
+                    MonsterTrainAccessibility.LogWarning("KeywordManager: ICardEffectStatuslessTooltip not found");
+                    return 0;
+                }
+
+                var effectTypes = new List<Type>();
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var asmName = assembly.GetName().Name;
+                    if (!asmName.Contains("Assembly-CSharp") && !asmName.Contains("Trainworks"))
+                        continue;
+                    try
+                    {
+                        foreach (var type in assembly.GetTypes())
+                        {
+                            if (type == null || !type.IsClass || type.IsAbstract) continue;
+                            if (interfaceType.IsAssignableFrom(type) && type != interfaceType)
+                                effectTypes.Add(type);
+                        }
+                    }
+                    catch { }
+                }
+
+                string[] suffixes = { "", "_Up", "_Down" };
+                foreach (var effectType in effectTypes)
+                {
+                    string typeName = effectType.Name;
+                    foreach (var suffix in suffixes)
+                    {
+                        string baseKey = typeName + suffix;
+                        string titleKey = baseKey + "_TooltipTitle";
+                        string textKey = baseKey + "_TooltipText";
+
+                        string name = TryLocalize(titleKey);
+                        if (string.IsNullOrEmpty(name) || name == titleKey) continue;
+
+                        // _TooltipText may embed {0} for dynamic strength. Fill with 0 so
+                        // the general tooltip description still formats cleanly.
+                        string tooltip = LocalizationHelper.LocalizeWithInt(textKey, 0);
+                        if (string.IsNullOrEmpty(tooltip) || tooltip == textKey)
+                            tooltip = TryLocalize(textKey);
+
+                        name = TextUtilities.CleanSpriteTagsForSpeech(name).Trim();
+                        if (string.IsNullOrEmpty(name)) continue;
+
+                        string value;
+                        if (!string.IsNullOrEmpty(tooltip) && tooltip != textKey)
+                        {
+                            tooltip = TextUtilities.CleanSpriteTagsForSpeech(tooltip).Trim();
+                            value = $"{name}: {tooltip}";
+                        }
+                        else
+                        {
+                            value = name;
+                        }
+
+                        if (!_keywords.ContainsKey(name))
+                        {
+                            _keywords[name] = value;
+                            count++;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"KeywordManager: Error loading card effect tooltips: {ex.Message}");
+            }
+            return count;
+        }
+
         private static int LoadCardTraitKeywords()
         {
             int count = 0;
@@ -223,6 +311,22 @@ namespace MonsterTrainAccessibility.Core
                 "CardTraitCopyOnPlay",
                 "CardTraitIgnoreArmor",
                 "CardTraitCorruptRestricted",
+                "CardTraitCorruptState",
+                "CardTraitEphemeral",
+                "CardTraitInfusion",
+                "CardTraitJuice",
+                "CardTraitJuice3",
+                "CardTraitHeavy",
+                "CardTraitMagneticState",
+                "CardTraitLevelMonsterState",
+                "CardTraitGraftedEquipment",
+                "CardTraitReturnToHandEquipment",
+                "CardTraitDamageOverflow",
+                "CardTraitSpellAffinity",
+                "CardTraitTreasure",
+                "CardTraitUnpurgable",
+                "CardTraitDrawInDeploymentPhase",
+                "CardTraitShowCardTargets",
                 "CardTraitScalingAddDamage",
                 "CardTraitScalingAddStatusEffect",
                 "CardTraitScalingBuffDamage",
@@ -232,6 +336,17 @@ namespace MonsterTrainAccessibility.Core
                 "CardTraitScalingUpgradeUnitHealth",
                 "CardTraitScalingUpgradeUnitSize",
                 "CardTraitScalingUpgradeUnitStatusEffect",
+                "CardTraitScalingAddCards",
+                "CardTraitScalingAddEnergy",
+                "CardTraitScalingAddDamagePerCard",
+                "CardTraitScalingAddEffectApplications",
+                "CardTraitScalingRewardGold",
+                "CardTraitScalingReturnConsumedCards",
+                "CardTraitScalingDrawAdditionalNextTurn",
+                "CardTraitScalingHealTrain",
+                "CardTraitScalingRemoveStatusEffect",
+                "CardTraitScalingAdvanceMoonPhase",
+                "CardTraitScalingMagicPowerOnMoonPhase",
             };
 
             foreach (string traitName in traitNames)
@@ -349,6 +464,7 @@ namespace MonsterTrainAccessibility.Core
                 { "Spellchain", "Spellchain: Creates a copy with +1 cost and Purge" },
                 { "Infused", "Infused: Floor gains 1 Echo when played" },
                 { "Extract", "Extract: Removes charged echoes when played" },
+                { "Advance", "Advance: Card effect that moves the targeted unit up a floor" },
                 { "Ascend", "Ascend: Move up a floor to the back" },
                 { "Descend", "Descend: Move down a floor to the back" },
                 { "Reform", "Reform: Return a defeated friendly unit to hand" },
@@ -385,6 +501,17 @@ namespace MonsterTrainAccessibility.Core
                 { "Hatch", "Hatch: Unit dies and triggers hatching ability" },
                 { "Hunger", "Hunger: Triggers when an Eaten unit is summoned" },
                 { "Armored", "Armored: Triggers when Armor is added" },
+                // MT2 trigger abilities
+                { "Deathwish", "Deathwish: Triggers when another unit on this floor dies" },
+                { "Valiant", "Valiant: Triggers when this unit has taken damage and survived" },
+                { "Regal", "Regal: Triggers when a Regal card is played" },
+                { "Shift", "Shift: Triggers when the moon phase changes" },
+                { "Moonlit", "Moonlit: Active during Full Moon phase" },
+                { "Moonshade", "Moonshade: Active during New Moon phase" },
+                { "Timebomb", "Timebomb: Triggers when countdown reaches zero" },
+                { "Reanimated", "Reanimated: Triggers when this unit returns from death" },
+                { "Troop Added", "Troop Added: Triggers when a unit joins this floor" },
+                { "Troop Removed", "Troop Removed: Triggers when a unit leaves this floor" },
                 // Buffs
                 { "Armor", "Armor: Blocks damage before health, each point blocks one damage" },
                 { "Rage", "Rage: +2 Attack per stack, decreases every turn" },
@@ -405,6 +532,25 @@ namespace MonsterTrainAccessibility.Core
                 { "Melee Weakness", "Melee Weakness: Takes extra damage from next melee attack" },
                 { "Spell Weakness", "Spell Weakness: Takes extra damage from next spell" },
                 { "Reap", "Reap: Takes 1 damage per stack of Echo after combat" },
+                // MT2 status effects
+                { "Valor", "Valor: Increases Pyre attack damage" },
+                { "Avarice", "Avarice: Gain gold when this enemy is killed" },
+                { "Titanskin", "Titanskin: Reduces all damage taken by amount" },
+                { "Titanite", "Titanite: Increases all damage dealt by amount" },
+                { "Unstable", "Unstable: Explodes for damage to all units on floor when killed" },
+                { "Horde", "Horde: Gains stats for each unit on this floor" },
+                { "Undying", "Undying: Returns to life after death with stacks reduced" },
+                { "Conduit", "Conduit: Links effects between floors" },
+                { "Blast Resistant", "Blast Resistant: Reduces damage from spells" },
+                { "Equalizer", "Equalizer: Sets attack equal to health" },
+                { "Mageblade", "Mageblade: Gains Magic Power as attack" },
+                { "Lifelink", "Lifelink: Heals the Pyre when this unit heals" },
+                { "Pyrebane", "Pyrebane: Deals bonus damage to the Pyre" },
+                { "Duality", "Duality: Effects change based on moon phase" },
+                { "Sniper", "Sniper: Targets specific units instead of front" },
+                { "Mass", "Mass: Affects all units on the floor" },
+                { "Decay", "Decay: Loses health each turn" },
+                { "Pyregel", "Pyregel: Shields the Pyre from damage" },
                 // Unit effects
                 { "Quick", "Quick: Attacks before enemy units" },
                 { "Multistrike", "Multistrike: Attacks an additional time each turn" },
@@ -436,7 +582,16 @@ namespace MonsterTrainAccessibility.Core
                 { "Holdover", "Holdover: Returns to hand at end of turn" },
                 { "Etch", "Etch: Permanently upgrade this card when consumed" },
                 { "Morsel", "Morsel: Small unit that gets eaten by front unit after combat" },
+                { "Ephemeral", "Ephemeral: Removed from hand at end of turn" },
+                { "Infusion", "Infusion: Gains bonuses from floor enchantments" },
+                { "Juice", "Juice: Gains extra effect stacks" },
+                { "Heavy", "Heavy: Cannot be moved by effects" },
+                { "Treasure", "Treasure: Valuable card worth Dragon's Hoard currency" },
+                { "Grafted", "Grafted: Permanently attached equipment" },
+                { "Overflow", "Overflow: Excess damage carries over to next target" },
+                { "Spell Affinity", "Spell Affinity: Gains bonuses when spells are played" },
                 // Unit actions
+                { "Advance", "Advance: Card effect that moves the targeted unit up a floor" },
                 { "Ascend", "Ascend: Move up a floor to the back" },
                 { "Descend", "Descend: Move down a floor to the back" },
                 { "Reform", "Reform: Return a defeated friendly unit to hand" },

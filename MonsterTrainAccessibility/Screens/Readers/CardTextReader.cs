@@ -134,26 +134,32 @@ namespace MonsterTrainAccessibility.Screens.Readers
             try
             {
                 var uiType = cardUI.GetType();
-                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-                // Look for cardState field
-                var cardStateField = fields.FirstOrDefault(f =>
-                    f.Name.ToLower().Contains("cardstate") || f.Name.ToLower().Contains("card"));
-                if (cardStateField != null)
+                // Prefer the public GetCardState() method — it returns the current CardState
+                // directly. Falling back to field scanning is fragile because CardUI has many
+                // fields whose names contain "card" (cardCanvas, cardFront, cardBack, etc.)
+                // and FirstOrDefault would grab the wrong one.
+                var getCardMethod = uiType.GetMethod("GetCardState", Type.EmptyTypes);
+                if (getCardMethod != null)
                 {
-                    var cardState = cardStateField.GetValue(cardUI);
+                    var cardState = getCardMethod.Invoke(cardUI, null);
                     if (cardState != null)
                     {
                         return ExtractCardInfo(cardState);
                     }
                 }
 
-                // Try GetCardState method
-                var getCardMethod = uiType.GetMethod("GetCardState", Type.EmptyTypes);
-                if (getCardMethod != null)
+                // Fall back to a narrow field scan: only match names ending in CardState
+                // (currentCardState, cardState, _cardState) — never the generic "card" fields.
+                var fields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var cardStateField = fields.FirstOrDefault(f =>
+                    f.Name.EndsWith("CardState", StringComparison.OrdinalIgnoreCase) ||
+                    f.Name.Equals("cardState", StringComparison.OrdinalIgnoreCase) ||
+                    f.Name.Equals("_cardState", StringComparison.OrdinalIgnoreCase));
+                if (cardStateField != null)
                 {
-                    var cardState = getCardMethod.Invoke(cardUI, null);
-                    if (cardState != null)
+                    var cardState = cardStateField.GetValue(cardUI);
+                    if (cardState != null && cardState.GetType().Name == "CardState")
                     {
                         return ExtractCardInfo(cardState);
                     }
@@ -372,7 +378,14 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     }
                 }
 
-                // Build announcement: Name, Rarity Clan Type, Cost ember. Description.
+                // Check if this card has been upgraded
+                bool isUpgraded = IsCardUpgraded(cardState, type);
+
+                // Build announcement: [Upgraded] Name, Rarity Clan Type, Cost ember. Description.
+                if (isUpgraded)
+                {
+                    sb.Append($"{ModLocalization.ModTerm("Upgraded")} ");
+                }
                 sb.Append(name);
 
                 // Build the type info: "Rare Hellhorned Unit" or "Common Spell"
@@ -408,13 +421,20 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         sb.Append($". {description}");
                 }
 
-                // For unit cards, try to get attack and health stats
+                // For unit cards, try to get attack and health stats + ability description
                 if (cardType == "Unit" || cardType == "Monster")
                 {
                     string stats = GetUnitStats(cardState, type);
                     if (!string.IsNullOrEmpty(stats))
                     {
                         sb.Append($". {stats}");
+                    }
+
+                    // Get unit ability description (e.g. what "Moneymaker" actually does)
+                    string abilityDesc = GetUnitAbilityDescription(cardState, type);
+                    if (!string.IsNullOrEmpty(abilityDesc))
+                    {
+                        sb.Append($". {abilityDesc}");
                     }
                 }
 
@@ -759,6 +779,123 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 }
             }
             catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Check if a CardState has any upgrades applied.
+        /// Reads CardState.cardModifiers (private) → GetCardUpgrades() → Count > 0.
+        /// </summary>
+        public static bool IsCardUpgraded(object cardState, Type cardStateType)
+        {
+            try
+            {
+                // Access the private cardModifiers field
+                var modifiersField = cardStateType.GetField("cardModifiers",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (modifiersField == null) return false;
+
+                var modifiers = modifiersField.GetValue(cardState);
+                if (modifiers == null) return false;
+
+                var getUpgrades = modifiers.GetType().GetMethod("GetCardUpgrades", Type.EmptyTypes);
+                if (getUpgrades == null) return false;
+
+                var upgrades = getUpgrades.Invoke(modifiers, null) as System.Collections.IList;
+                return upgrades != null && upgrades.Count > 0;
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>
+        /// Get the unit ability description for a unit card.
+        /// Fetches the ability CardData from CharacterData.GetUnitAbilityCardData()
+        /// and extracts its card text/description.
+        /// </summary>
+        public static string GetUnitAbilityDescription(object cardState, Type cardStateType)
+        {
+            try
+            {
+                object charData = GetSpawnCharacterData(cardState, cardStateType);
+                if (charData == null) return null;
+
+                var charDataType = charData.GetType();
+                var getAbilityMethod = charDataType.GetMethod("GetUnitAbilityCardData", Type.EmptyTypes);
+                if (getAbilityMethod == null) return null;
+
+                var abilityCardData = getAbilityMethod.Invoke(charData, null);
+                if (abilityCardData == null) return null;
+
+                var abilityDataType = abilityCardData.GetType();
+
+                // Get ability name
+                string abilityName = null;
+                var getNameKey = abilityDataType.GetMethod("GetNameKey", Type.EmptyTypes);
+                if (getNameKey != null)
+                {
+                    var nameKey = getNameKey.Invoke(abilityCardData, null) as string;
+                    if (!string.IsNullOrEmpty(nameKey))
+                        abilityName = LocalizationHelper.TryLocalize(nameKey);
+                }
+                if (string.IsNullOrEmpty(abilityName))
+                {
+                    var getName = abilityDataType.GetMethod("GetName", Type.EmptyTypes);
+                    if (getName != null)
+                        abilityName = getName.Invoke(abilityCardData, null) as string;
+                }
+
+                // Effect text lives on CardState, not CardData — wrap the ability
+                // CardData in a fresh CardState(cardData, null) so GetCardText works.
+                string abilityText = null;
+                object abilityCardState = null;
+                try
+                {
+                    var csType = ReflectionHelper.GetTypeFromAssemblies("CardState");
+                    if (csType != null)
+                    {
+                        var ctor = csType.GetConstructor(new[] { abilityDataType, ReflectionHelper.GetTypeFromAssemblies("SaveManager"), typeof(bool), typeof(bool) });
+                        if (ctor != null)
+                            abilityCardState = ctor.Invoke(new object[] { abilityCardData, null, true, false });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MonsterTrainAccessibility.LogInfo($"Could not construct ability CardState: {ex.Message}");
+                }
+
+                if (abilityCardState != null)
+                    abilityText = GetCardTextFromState(abilityCardState, abilityCardState.GetType());
+
+                // Fallback: localize the override description key directly from the CardData
+                if (string.IsNullOrEmpty(abilityText))
+                {
+                    var getOverrideKey = abilityDataType.GetMethod("GetOverrideDescriptionKey", Type.EmptyTypes);
+                    if (getOverrideKey != null)
+                    {
+                        var key = getOverrideKey.Invoke(abilityCardData, null) as string;
+                        if (!string.IsNullOrEmpty(key))
+                            abilityText = LocalizationHelper.TryLocalize(key);
+                    }
+                }
+
+                if (string.IsNullOrEmpty(abilityText)) return null;
+
+                abilityText = TextUtilities.CleanSpriteTagsForSpeech(abilityText);
+                abilityText = TextUtilities.StripRichTextTags(abilityText).Trim();
+
+                if (string.IsNullOrEmpty(abilityText)) return null;
+
+                // If we already have "Ability: Name" in the card description, just add the effect text
+                if (!string.IsNullOrEmpty(abilityName))
+                    return $"{TextUtilities.StripRichTextTags(abilityName)}: {abilityText}";
+
+                return abilityText;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error getting unit ability description: {ex.Message}");
+            }
             return null;
         }
 

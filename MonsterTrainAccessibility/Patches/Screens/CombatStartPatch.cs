@@ -41,7 +41,7 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 if (MonsterTrainAccessibility.BattleHandler == null)
                 {
                     MonsterTrainAccessibility.LogInfo("BattleHandler is null - announcing directly");
-                    MonsterTrainAccessibility.ScreenReader?.Speak("Battle started. Press H for hand, L for floors, R for resources, F1 for help.", false);
+                    MonsterTrainAccessibility.ScreenReader?.Speak("Battle started. Press F7 for hand, F2 for floors, R for resources, F1 for help.", false);
                 }
                 else
                 {

@@ -3,14 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace MonsterTrainAccessibility.Battle
 {
     /// <summary>
-    /// Non-modal ability browser. Ctrl+Left/Right cycles through the Pyre ability
-    /// and every friendly unit that has an active ability (champion included).
-    /// Ctrl+Enter activates. No separate mode — card focus stays with the EventSystem.
+    /// Non-modal ability browser. O cycles through the Pyre ability and every
+    /// friendly unit that has an active ability (champion included). P activates
+    /// the focused ability. No separate mode — card focus stays with the EventSystem.
     /// </summary>
     public class AbilityFocusSystem : MonoBehaviour
     {
@@ -53,7 +52,7 @@ namespace MonsterTrainAccessibility.Battle
             if (_hintAnnounced) return;
             _hintAnnounced = true;
             MonsterTrainAccessibility.ScreenReader?.Queue(
-                "Press O and P to browse abilities, Enter to activate.");
+                "Press O to cycle abilities, P to activate.");
         }
 
         private void Update()
@@ -84,43 +83,27 @@ namespace MonsterTrainAccessibility.Battle
                 }
                 _inputCooldown = COOLDOWN;
             }
-            // P — cycle to previous ability
+            // P — activate the focused ability. Enter stays reserved for card play
+            // since it conflicts with other game bindings.
             else if (Input.GetKeyDown(KeyCode.P))
             {
-                BuildItems();
-                if (_items.Count == 0)
+                if (_index < 0 || _index >= _items.Count)
                 {
-                    MonsterTrainAccessibility.ScreenReader?.Speak("No abilities available", false);
+                    MonsterTrainAccessibility.ScreenReader?.Speak("No ability focused. Press O to cycle abilities first.", false);
                 }
                 else
                 {
-                    _index = (_index - 1 + _items.Count) % _items.Count;
-                    AnnounceCurrent();
+                    Activate();
                 }
                 _inputCooldown = COOLDOWN;
             }
-            // Any arrow key without O/P — user is navigating cards, clear ability selection
-            // so Enter goes back to normal card play.
+            // Any arrow key without O/P — user is navigating cards, clear ability selection.
             else if (_index >= 0 &&
                      (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.RightArrow) ||
                       Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow)))
             {
                 _index = -1;
                 _items.Clear();
-            }
-            // Enter — activate selected ability.
-            // Temporarily deselect the current card so the EventSystem's Submit
-            // handler doesn't also fire (which would try to play the focused card).
-            else if (_index >= 0 && _index < _items.Count &&
-                     (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
-            {
-                var es = EventSystem.current;
-                var saved = es?.currentSelectedGameObject;
-                if (es != null) es.SetSelectedGameObject(null);
-                Activate();
-                // Restore selection next frame so the player can keep navigating cards.
-                if (saved != null) StartCoroutine(RestoreSelection(saved));
-                _inputCooldown = COOLDOWN;
             }
         }
 
@@ -179,13 +162,6 @@ namespace MonsterTrainAccessibility.Battle
                 MonsterTrainAccessibility.LogError($"AbilityFocusSystem activate error: {ex}");
                 MonsterTrainAccessibility.ScreenReader?.Speak("Error activating ability", false);
             }
-        }
-
-        private IEnumerator RestoreSelection(GameObject go)
-        {
-            yield return null; // wait one frame so EventSystem skips this Submit
-            if (go != null && EventSystem.current != null)
-                EventSystem.current.SetSelectedGameObject(go);
         }
 
         #region Item collection

@@ -1,5 +1,6 @@
 using MonsterTrainAccessibility.Battle;
 using MonsterTrainAccessibility.Core;
+using MonsterTrainAccessibility.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -70,13 +71,15 @@ namespace MonsterTrainAccessibility.Screens
         public void OnTurnStarted(int ember, int maxEmber, int cardsDrawn)
         {
             var output = MonsterTrainAccessibility.ScreenReader;
-            output?.Speak("Your turn", false);
+            // Use deployment phase key if available, otherwise fall back
+            string turnMsg = LocalizationHelper.Localize("CombatMsg_DeploymentPhase") ?? "▶";
+            output?.Speak(turnMsg, false);
 
             // Read actual ember from game
             int actualEmber = _resourceReader?.GetCurrentEnergy() ?? -1;
             if (actualEmber >= 0)
             {
-                output?.Queue($"{actualEmber} ember");
+                output?.Queue($"{actualEmber} {ModLocalization.Ember}");
             }
 
             if (cardsDrawn > 0)
@@ -294,7 +297,9 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleWon()
         {
             IsInBattle = false;
-            MonsterTrainAccessibility.ScreenReader?.Speak("Victory! Battle won.", false);
+            // ScoreEvent_NormalBattleNoDamage is the game's "Battle Won" key
+            string victory = LocalizationHelper.Localize("ScoreEvent_NormalBattleNoDamage") ?? "Victory!";
+            MonsterTrainAccessibility.ScreenReader?.Speak(TextUtilities.StripRichTextTags(victory), false);
         }
 
         /// <summary>
@@ -303,7 +308,8 @@ namespace MonsterTrainAccessibility.Screens
         public void OnBattleLost()
         {
             IsInBattle = false;
-            MonsterTrainAccessibility.ScreenReader?.Speak("Defeat. The pyre has been destroyed.", false);
+            string defeat = LocalizationHelper.Localize("ScoreEvent_NormalBattleLoss") ?? "Defeat";
+            MonsterTrainAccessibility.ScreenReader?.Speak(TextUtilities.StripRichTextTags(defeat), false);
         }
 
         #endregion
@@ -323,13 +329,9 @@ namespace MonsterTrainAccessibility.Screens
                 return;
 
             if (cardNames.Count == 1)
-            {
                 MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {cardNames[0]}");
-            }
             else
-            {
                 MonsterTrainAccessibility.ScreenReader?.Queue($"Drew: {string.Join(", ", cardNames)}");
-            }
         }
 
         /// <summary>
@@ -340,13 +342,7 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceCardDraws.Value)
                 return;
 
-            int handSize = _handReader?.GetHandSize() ?? 0;
-
-            if (count == 1)
-            {
-                MonsterTrainAccessibility.ScreenReader?.Queue("Drew 1 card");
-            }
-            else if (count > 1)
+            if (count > 0)
             {
                 MonsterTrainAccessibility.ScreenReader?.Queue($"Drew {count} cards");
             }
@@ -354,7 +350,7 @@ namespace MonsterTrainAccessibility.Screens
 
         public void OnCardPlayed(int cardIndex)
         {
-            MonsterTrainAccessibility.ScreenReader?.Queue("Card played");
+            // Card name already announced by card selection; no English needed
         }
 
         public void OnCardDiscarded(string cardName)
@@ -437,8 +433,8 @@ namespace MonsterTrainAccessibility.Screens
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDeaths.Value)
                 return;
 
+            string floorInfo = userFloor > 0 ? $" ({Battle.FloorReader.GetFloorDisplayName(userFloor)})" : "";
             string prefix = isEnemy ? "Enemy" : "Your";
-            string floorInfo = userFloor > 0 ? $" on {Battle.FloorReader.GetFloorDisplayName(userFloor)}" : "";
             MonsterTrainAccessibility.ScreenReader?.Queue($"{prefix} {unitName} died{floorInfo}");
         }
 
@@ -451,23 +447,23 @@ namespace MonsterTrainAccessibility.Screens
             string lower = effectName?.ToLowerInvariant() ?? "";
             if (lower == "unit ability available")
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability ready");
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}: {effectName}");
                 AbilityFocusSystem.Instance?.OnAbilityBecameAvailable();
                 return;
             }
             if (lower == "cooldown")
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability on cooldown {stacks}");
+                string cdName = ModLocalization.StatusEffectName("cooldown", stacks);
+                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}: {cdName} {stacks}");
                 return;
             }
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {effectName} {stacks}");
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.Phrase("GainsStacks", unitName, stacks, effectName));
         }
 
         public void OnUnitSpawned(string unitName, bool isEnemy, int floorIndex)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceSpawns.Value)
                 return;
@@ -475,40 +471,30 @@ namespace MonsterTrainAccessibility.Screens
             if (string.IsNullOrEmpty(unitName) || unitName == "Unit")
                 return;
 
-            string floorName;
-            if (floorIndex < 0)
-            {
-                floorName = "the battlefield";
-            }
-            else
-            {
-                floorName = Battle.FloorReader.GetFloorDisplayName(floorIndex);
-            }
+            string floorName = floorIndex >= 0
+                ? Battle.FloorReader.GetFloorDisplayName(floorIndex)
+                : "";
 
             if (isEnemy)
-            {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy {unitName} enters on {floorName}");
-            }
+                MonsterTrainAccessibility.ScreenReader?.Queue(
+                    !string.IsNullOrEmpty(floorName) ? $"Enemy {unitName} enters on {floorName}" : $"Enemy {unitName}");
             else
-            {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} summoned on {floorName}");
-            }
+                MonsterTrainAccessibility.ScreenReader?.Queue(
+                    !string.IsNullOrEmpty(floorName) ? $"{unitName} summoned on {floorName}" : $"{unitName} summoned");
         }
 
         public void OnEnemiesAscended()
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue("Enemies ascend");
         }
 
         public void OnPyreDamaged(int damage, int remainingHP)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre takes {damage} damage! {remainingHP} health remaining");
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{ModLocalization.Pyre} -{damage} ({remainingHP} HP)");
         }
 
         public void OnEnemyDialogue(string text)
@@ -527,37 +513,34 @@ namespace MonsterTrainAccessibility.Screens
 
         public void OnCombatResolutionStarted()
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue("Combat!");
         }
 
         public void OnRelicTriggered(string relicName)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
             if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceRelicTriggers.Value)
                 return;
 
+            // Relic name is already localized from the game
             MonsterTrainAccessibility.ScreenReader?.Queue($"{relicName} triggered");
         }
 
         public void OnCardExhausted(string cardName)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue($"{cardName} consumed");
         }
 
         public void OnPyreHealed(int amount, int currentHP)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"Pyre healed for {amount}. {currentHP} health");
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.Phrase("PyreHealed", amount, currentHP));
         }
 
         public void OnStatusEffectRemoved(string unitName, string effectName, int stacks)
@@ -567,53 +550,45 @@ namespace MonsterTrainAccessibility.Screens
 
             // Special-case ability cooldown / readiness
             string lower = effectName?.ToLowerInvariant() ?? "";
-            if (lower == "unit ability available")
+            if (lower == "unit ability available" || lower == "cooldown")
             {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability used");
-                return;
-            }
-            if (lower == "cooldown")
-            {
-                MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} ability ready");
+                // These are handled by OnStatusEffectApplied already
                 return;
             }
 
-            string message = stacks > 1
-                ? $"{unitName} loses {stacks} {effectName}"
-                : $"{unitName} loses {effectName}";
-            MonsterTrainAccessibility.ScreenReader?.Queue(message);
+            MonsterTrainAccessibility.ScreenReader?.Queue(
+                stacks > 1 ? $"{unitName} -{stacks} {effectName}" : $"{unitName} -{effectName}");
         }
 
         public void OnCharacterMoved(string unitName, bool ascended, int destinationFloor)
         {
             if (!IsInBattle) return;
-            string verb = ascended ? "ascends" : "descends";
             string where = Battle.FloorReader.GetFloorDisplayName(destinationFloor);
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} {verb} to {where}");
+            string verb = ascended ? "ascends to" : "descends to";
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} {verb} {where}");
         }
 
         public void OnEquipmentAdded(string unitName, string equipmentName)
         {
             if (!IsInBattle) return;
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} equipped {equipmentName}");
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.Phrase("Equipped", unitName, equipmentName));
         }
 
         public void OnEquipmentRemoved(string unitName, string equipmentName)
         {
             if (!IsInBattle) return;
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} unequipped {equipmentName}");
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.Phrase("Unequipped", unitName, equipmentName));
         }
 
         public void OnMoonPhaseChanged(string phaseName)
         {
             if (!IsInBattle) return;
-            MonsterTrainAccessibility.ScreenReader?.Queue($"Moon phase: {phaseName}");
+            MonsterTrainAccessibility.ScreenReader?.Queue(phaseName);
         }
 
         public void OnAllEnemiesDefeated()
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
             MonsterTrainAccessibility.ScreenReader?.Queue("All enemies defeated");
         }
@@ -628,10 +603,9 @@ namespace MonsterTrainAccessibility.Screens
 
         public void OnMaxHPBuffed(string unitName, int amount)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} gains {amount} max health");
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.MaxHPBuffed(unitName, amount));
         }
 
         public void OnAttackDebuffed(string unitName, int amount)
@@ -643,65 +617,100 @@ namespace MonsterTrainAccessibility.Screens
         public void OnMaxHPDebuffed(string unitName, int amount)
         {
             if (!IsInBattle || amount <= 0) return;
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} loses {amount} max health");
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.MaxHPDebuffed(unitName, amount));
         }
 
         public void OnAttackBuffed(string unitName, int amount)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle || amount == 0) return;
 
-            if (amount == 0) return;
-
-            // Mirror the game's own notification: CardEffectBuffDamage_Activated formatted
-            // with TextFormat_Add / TextFormat_Default. Produces "+X ATK" / "Gana X de ataque"
-            // in whatever language the game is running.
-            string template = Utilities.LocalizationHelper.Localize("CardEffectBuffDamage_Activated");
-            string amountTemplate = Utilities.LocalizationHelper.Localize(amount >= 0 ? "TextFormat_Add" : "TextFormat_Default");
-            string announcement;
-            if (!string.IsNullOrEmpty(template) && !string.IsNullOrEmpty(amountTemplate))
-            {
-                try
-                {
-                    announcement = $"{unitName} {string.Format(template, string.Format(amountTemplate, amount))}";
-                }
-                catch
-                {
-                    announcement = amount > 0
-                        ? $"{unitName} gains {amount} attack"
-                        : $"{unitName} loses {-amount} attack";
-                }
-            }
-            else
-            {
-                announcement = amount > 0
-                    ? $"{unitName} gains {amount} attack"
-                    : $"{unitName} loses {-amount} attack";
-            }
-
-            // The game's CardEffectBuffDamage_Activated template embeds a literal
-            // <sprite name="Attack"> tag — clean it up so it reads as "gains N attack".
-            announcement = Utilities.TextUtilities.CleanSpriteTagsForSpeech(announcement);
-            MonsterTrainAccessibility.ScreenReader?.Queue(announcement);
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.AttackBuffed(unitName, amount));
         }
 
         public void OnTriggerAbilityFired(string unitName, string triggerName)
         {
-            if (!IsInBattle)
-                return;
+            if (!IsInBattle) return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}'s {triggerName} triggered");
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}: {triggerName}");
         }
 
         public void OnWaveStarted(int waveNumber)
         {
-            if (!IsInBattle)
+            if (!IsInBattle) return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.WaveStarted(waveNumber));
+        }
+
+        public void OnEnergyModified(int amount, bool everyTurn)
+        {
+            if (!IsInBattle) return;
+
+            // Use +/- format with localized ember name
+            string sign = amount > 0 ? "+" : "";
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{sign}{amount} {ModLocalization.Ember}");
+        }
+
+        public void OnDrawCountModified(int amount)
+        {
+            if (!IsInBattle) return;
+
+            string sign = amount > 0 ? "+" : "";
+            // Card draw is shown next to the draw pile name
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{sign}{amount} {ModLocalization.DrawPileName}");
+        }
+
+        public void OnPyreArmorChanged(int armorValue)
+        {
+            if (!IsInBattle) return;
+
+            string armor = ModLocalization.StatusEffectName("armor", armorValue);
+            MonsterTrainAccessibility.ScreenReader?.Queue(
+                $"{ModLocalization.Pyre}: {armor} {armorValue}");
+        }
+
+        public void OnUnitSacrificed(string unitName, bool isEnemy)
+        {
+            if (!IsInBattle) return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDeaths.Value)
                 return;
 
-            if (waveNumber > 0)
-                MonsterTrainAccessibility.ScreenReader?.Queue($"Enemy wave {waveNumber}");
-            else
-                MonsterTrainAccessibility.ScreenReader?.Queue("New enemy wave");
+            // "Sacrifice" keyword is already localized in the fallback dictionary
+            string sacrifice = LocalizationHelper.Localize("Trigger_OnKill_CharacterTriggerData_CardText")
+                ?? "Sacrifice";
+            sacrifice = TextUtilities.StripRichTextTags(sacrifice).Trim();
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}: {sacrifice}");
+        }
+
+        public void OnHPDebuffed(string unitName, int amount)
+        {
+            if (!IsInBattle) return;
+
+            if (!MonsterTrainAccessibility.AccessibilitySettings.AnnounceDamage.Value)
+                return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} -{amount} HP");
+        }
+
+        public void OnTriggerAdded(string unitName, string triggerName)
+        {
+            if (!IsInBattle) return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.Phrase("GainsTrigger", unitName, triggerName));
+        }
+
+        public void OnTriggerRemoved(string unitName, string triggerName)
+        {
+            if (!IsInBattle) return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue(ModLocalization.Phrase("LosesTrigger", unitName, triggerName));
+        }
+
+        public void OnCardUpgradeApplied(string unitName, string upgradeSummary)
+        {
+            if (!IsInBattle) return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}: {upgradeSummary}");
         }
 
         #endregion

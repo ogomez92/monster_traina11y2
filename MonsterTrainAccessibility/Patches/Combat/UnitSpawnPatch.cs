@@ -51,11 +51,20 @@ namespace MonsterTrainAccessibility.Patches.Combat
             }
         }
 
-        // CharacterState.Setup takes CharacterStateSetup as first parameter
-        public static void PostfixCharacterSetup(object __instance, object __0)
+        // CharacterState.Setup(CharacterStateSetup setup, SpawnPoint startingSpawnPoint,
+        //                      SetupVfxData vfx, bool createInPreviewState)
+        public static void PostfixCharacterSetup(object __instance, object __0, object __3)
         {
             try
             {
+                // Suppress preview-mode spawns. The game spawns preview CharacterStates
+                // whenever the player hovers a unit card to show where it would land —
+                // these aren't real summons and shouldn't be announced.
+                if (__3 is bool createInPreview && createInPreview)
+                    return;
+                if (PreviewModeDetector.ShouldSuppressAnnouncement(__instance))
+                    return;
+
                 // Clear old spawn tracking periodically
                 float currentTime = UnityEngine.Time.unscaledTime;
                 if (currentTime - _lastClearTime > 10f)

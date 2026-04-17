@@ -1,6 +1,7 @@
 using HarmonyLib;
 using System;
 using MonsterTrainAccessibility.Patches;
+using MonsterTrainAccessibility.Utilities;
 
 namespace MonsterTrainAccessibility.Patches.Combat
 {
@@ -68,7 +69,7 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 _lastHealKey = healKey;
                 _lastHealTime = currentTime;
 
-                MonsterTrainAccessibility.ScreenReader?.Speak($"{targetName} healed for {amount}");
+                MonsterTrainAccessibility.ScreenReader?.Speak(ModLocalization.Phrase("Healed", targetName, amount));
             }
             catch (Exception ex)
             {

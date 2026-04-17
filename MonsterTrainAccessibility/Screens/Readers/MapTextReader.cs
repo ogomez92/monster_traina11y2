@@ -68,61 +68,79 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     return null;
                 }
 
-                // Try to get the MapNodeData from the component
+                // Try to get the MapNodeData from the component.
+                // MapNodeUI has a private field called "data" and a GetData() method.
                 var iconType = mapNodeComponent.GetType();
                 object mapNodeData = null;
 
-                // Try common field/property names for the node data
-                var dataField = iconType.GetField("mapNodeData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (dataField != null)
+                // Try GetData() method first (MapNodeUI exposes this)
+                var getDataMethod = iconType.GetMethod("GetData", Type.EmptyTypes);
+                if (getDataMethod != null)
                 {
-                    mapNodeData = dataField.GetValue(mapNodeComponent);
+                    try { mapNodeData = getDataMethod.Invoke(mapNodeComponent, null); }
+                    catch { }
                 }
-                else
+
+                // Fallback: try common field names
+                if (mapNodeData == null)
                 {
-                    var dataProp = iconType.GetProperty("MapNodeData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (dataProp != null)
+                    string[] fieldNames = { "data", "mapNodeData", "_mapNodeData", "_data" };
+                    foreach (var name in fieldNames)
                     {
-                        mapNodeData = dataProp.GetValue(mapNodeComponent);
+                        var dataField = iconType.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (dataField != null)
+                        {
+                            mapNodeData = dataField.GetValue(mapNodeComponent);
+                            if (mapNodeData != null) break;
+                        }
                     }
                 }
 
-                // Also try _mapNodeData (common naming convention)
                 if (mapNodeData == null)
                 {
-                    dataField = iconType.GetField("_mapNodeData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (dataField != null)
-                    {
-                        mapNodeData = dataField.GetValue(mapNodeComponent);
-                    }
-                }
-
-                if (mapNodeData == null)
-                {
-                    // MapNodeUI found but no mapNodeData - try tooltip fallback
-                    MonsterTrainAccessibility.LogInfo($"MapNodeUI found but mapNodeData is null, trying tooltip fallback");
+                    // MapNodeUI found but no data - try tooltip fallback
+                    MonsterTrainAccessibility.LogInfo($"MapNodeUI found but data is null, trying tooltip fallback");
                     string tooltipText = TooltipTextReader.GetTooltipTextWithBody(go);
-                    MonsterTrainAccessibility.LogInfo($"Tooltip fallback result: '{tooltipText ?? "null"}'");
                     if (!string.IsNullOrEmpty(tooltipText) && !tooltipText.Contains("Enemy_Tooltip"))
                     {
-                        // Clean sprite tags from tooltip
                         return TextUtilities.CleanSpriteTagsForSpeech(tooltipText);
                     }
-                    // Log available fields for debugging
                     LogMapNodeUIFields(mapNodeComponent);
                     return null;
                 }
 
                 var nodeDataType = mapNodeData.GetType();
-                string nodeName = nodeDataType.Name;
 
-                // Check if this is a ScenarioData (battle node)
+                // All MapNodeData subclasses have GetTooltipTitle() which returns the
+                // localized display name (e.g. "Merchant of Magic", "Unstable Vortex").
+                var getTooltipTitle = nodeDataType.GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                string title = null;
+                if (getTooltipTitle != null)
+                    title = getTooltipTitle.Invoke(mapNodeData, null) as string;
+
+                string body = null;
+                var getTooltipBody = nodeDataType.GetMethod("GetTooltipBody", Type.EmptyTypes);
+                if (getTooltipBody != null)
+                    body = getTooltipBody.Invoke(mapNodeData, null) as string;
+
+                if (!string.IsNullOrEmpty(title))
+                {
+                    title = TextUtilities.CleanSpriteTagsForSpeech(TextUtilities.StripRichTextTags(title));
+                    if (!string.IsNullOrEmpty(body))
+                    {
+                        body = TextUtilities.CleanSpriteTagsForSpeech(TextUtilities.StripRichTextTags(body));
+                        return $"{title}. {body}";
+                    }
+                    return title;
+                }
+
+                // Fallback for ScenarioData (battle nodes)
+                string nodeName = nodeDataType.Name;
                 if (nodeName == "ScenarioData" || nodeDataType.BaseType?.Name == "ScenarioData")
                 {
                     return BattleIntroTextReader.GetBattleNodeName(mapNodeData, nodeDataType);
                 }
 
-                // For other node types (rewards, merchants, etc.), try tooltipTitleKey
                 return BattleIntroTextReader.GetGenericNodeName(mapNodeData, nodeDataType);
             }
             catch (Exception ex)
@@ -134,7 +152,9 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
-        /// Get text for map branch choice elements (when choosing between paths)
+        /// Get text for map branch choice elements (when choosing between paths).
+        /// Collects ALL nodes on the selected branch (left/right + shared + battle)
+        /// and announces them comma-separated.
         /// </summary>
         public static string GetBranchChoiceText(GameObject go)
         {
@@ -155,69 +175,94 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     }
                 }
 
-                // Check if this is a branch choice element or map navigation arrow
+                // Determine if this is a left or right branch button.
+                // Buttons are named "Left button" / "Right button" under BranchChoiceUI.
                 string goName = go.name.ToLower();
-                bool isBranchChoice = goName.Contains("branch") || goName.Contains("choice");
-                bool isMapArrow = goName.Contains("arrow") || goName.Contains("navigation") ||
-                                  goName.Contains("left") || goName.Contains("right");
+                bool isLeft = goName.Contains("left");
+                bool isRight = goName.Contains("right");
 
-                // Also check parent names
-                if (!isBranchChoice && !isMapArrow && go.transform.parent != null)
+                // Also check parent names for branch context
+                if (!isLeft && !isRight)
                 {
-                    string parentName = go.transform.parent.name.ToLower();
-                    isBranchChoice = parentName.Contains("branch") || parentName.Contains("choice");
-                    isMapArrow = parentName.Contains("arrow") || parentName.Contains("navigation");
+                    if (go.transform.parent != null)
+                    {
+                        string parentName = go.transform.parent.name.ToLower();
+                        if (parentName.Contains("branchchoice") || parentName.Contains("branch"))
+                        {
+                            isLeft = goName.Contains("left") || goName == "0";
+                            isRight = goName.Contains("right") || goName == "1";
+                        }
+                        else if (!parentName.Contains("branch") && !parentName.Contains("choice"))
+                        {
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        return null;
+                    }
                 }
 
-                if (!isBranchChoice && !isMapArrow)
+                if (!isLeft && !isRight)
                     return null;
 
-                MonsterTrainAccessibility.LogInfo($"Found map choice element: {go.name}");
+                string branchPrefix = isLeft ? "left" : "right";
+                string direction = isLeft ? "Left" : "Right";
 
-                // First, try to find the currently visible tooltip on screen
-                string visibleTooltip = GetVisibleMapTooltip();
-                if (!string.IsNullOrEmpty(visibleTooltip))
+                // Find the parent MapSection which contains all the nodes
+                Transform section = go.transform.parent;
+                while (section != null && !section.name.Contains("MapSection"))
                 {
-                    // Determine direction if it's an arrow
-                    string direction = "";
-                    if (goName.Contains("left"))
-                        direction = "Left path: ";
-                    else if (goName.Contains("right"))
-                        direction = "Right path: ";
-
-                    return direction + visibleTooltip;
+                    section = section.parent;
                 }
 
-                // Try to get destination node info from the button component
-                string destInfo = GetMapArrowDestination(go);
-                if (!string.IsNullOrEmpty(destInfo))
+                if (section == null)
                 {
-                    return destInfo;
+                    MonsterTrainAccessibility.LogInfo("Branch button: could not find parent MapSection");
+                    return $"{direction} path";
                 }
 
-                // Look for node type indicators in children (icons, labels)
-                var nodeType = GetBranchNodeType(go);
+                // Collect all MapNodeUI nodes that belong to this branch.
+                // Nodes are named "Left node N", "Right node N", "Shared node N".
+                // Also include MapBattleNodeUI for the battle node.
+                var nodeNames = new List<string>();
 
-                // Look for enemy names or battle info in tooltip or children
-                string enemyInfo = GetBranchEnemyInfo(go);
-
-                if (!string.IsNullOrEmpty(nodeType))
+                // Scan section descendants for MapNodeUI and MapBattleNodeUI
+                foreach (var child in section.GetComponentsInChildren<Component>(true))
                 {
-                    if (!string.IsNullOrEmpty(enemyInfo))
+                    if (child == null || !child.gameObject.activeInHierarchy) continue;
+
+                    string childTypeName = child.GetType().Name;
+                    string childGoName = child.gameObject.name.ToLower();
+
+                    if (childTypeName == "MapNodeUI")
                     {
-                        return $"{nodeType}: {enemyInfo}";
+                        // Include if it matches our branch or is shared
+                        bool matchesBranch = childGoName.Contains(branchPrefix);
+                        bool isShared = childGoName.Contains("shared");
+
+                        if (!matchesBranch && !isShared) continue;
+
+                        // Get localized title via GetData().GetTooltipTitle()
+                        string nodeName = GetMapNodeUITitle(child);
+                        if (!string.IsNullOrEmpty(nodeName))
+                            nodeNames.Add(nodeName);
                     }
-                    return nodeType;
+                    else if (childTypeName == "MapBattleNodeUI")
+                    {
+                        // Battle node is always shared between branches
+                        string battleTitle = GetBattleNodeTitle(child);
+                        if (!string.IsNullOrEmpty(battleTitle))
+                            nodeNames.Add(battleTitle);
+                    }
                 }
 
-                // Fallback: try to find any meaningful text in children
-                string childText = GetFirstMeaningfulChildText(go);
-                if (!string.IsNullOrEmpty(childText))
+                if (nodeNames.Count > 0)
                 {
-                    return $"Path: {childText}";
+                    return $"{direction} path: {string.Join(", ", nodeNames)}";
                 }
 
-                return "Map path option";
+                return $"{direction} path";
             }
             catch (Exception ex)
             {
@@ -229,6 +274,87 @@ namespace MonsterTrainAccessibility.Screens.Readers
         /// <summary>
         /// Try to get destination info from a map arrow button
         /// </summary>
+        /// <summary>
+        /// Get the localized title from a MapNodeUI component via GetData().GetTooltipTitle().
+        /// </summary>
+        private static string GetMapNodeUITitle(Component mapNodeUI)
+        {
+            try
+            {
+                var uiType = mapNodeUI.GetType();
+                var getDataMethod = uiType.GetMethod("GetData", Type.EmptyTypes);
+                if (getDataMethod != null)
+                {
+                    var data = getDataMethod.Invoke(mapNodeUI, null);
+                    if (data != null)
+                    {
+                        var getTooltipTitle = data.GetType().GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                        if (getTooltipTitle != null)
+                        {
+                            var title = getTooltipTitle.Invoke(data, null) as string;
+                            if (!string.IsNullOrEmpty(title))
+                                return TextUtilities.CleanSpriteTagsForSpeech(
+                                    TextUtilities.StripRichTextTags(title));
+                        }
+                    }
+                }
+
+                // Fallback: try the "data" field directly
+                var dataField = uiType.GetField("data",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (dataField != null)
+                {
+                    var data = dataField.GetValue(mapNodeUI);
+                    if (data != null)
+                    {
+                        var getTooltipTitle = data.GetType().GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                        if (getTooltipTitle != null)
+                        {
+                            var title = getTooltipTitle.Invoke(data, null) as string;
+                            if (!string.IsNullOrEmpty(title))
+                                return TextUtilities.CleanSpriteTagsForSpeech(
+                                    TextUtilities.StripRichTextTags(title));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetMapNodeUITitle error: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get the localized title from a MapBattleNodeUI component.
+        /// </summary>
+        private static string GetBattleNodeTitle(Component battleNodeUI)
+        {
+            try
+            {
+                var uiType = battleNodeUI.GetType();
+
+                // MapBattleNodeUI has defaultTooltipTitle field with a localization key
+                var titleField = uiType.GetField("defaultTooltipTitle",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (titleField != null)
+                {
+                    var titleKey = titleField.GetValue(battleNodeUI) as string;
+                    if (!string.IsNullOrEmpty(titleKey))
+                    {
+                        var localized = LocalizationHelper.TryLocalize(titleKey);
+                        if (!string.IsNullOrEmpty(localized))
+                            return TextUtilities.StripRichTextTags(localized);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetBattleNodeTitle error: {ex.Message}");
+            }
+            return null;
+        }
+
         public static string GetMapArrowDestination(GameObject go)
         {
             try
@@ -612,37 +738,32 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 var uiMethods = uiType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
                 var uiFields = uiType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-                // First priority: Try GetMapNodeDataName() method - this should give us the actual name
-                var getNameMethod = uiMethods.FirstOrDefault(m => m.Name == "GetMapNodeDataName" && m.GetParameters().Length == 0);
-                if (getNameMethod != null)
+                // First priority: GetData() → GetTooltipTitle() for localized name
+                var getDataMethod2 = uiMethods.FirstOrDefault(m => m.Name == "GetData" && m.GetParameters().Length == 0);
+                if (getDataMethod2 != null)
                 {
                     try
                     {
-                        var nodeName = getNameMethod.Invoke(nodeUI, null) as string;
-                        if (!string.IsNullOrEmpty(nodeName))
+                        var nodeData = getDataMethod2.Invoke(nodeUI, null);
+                        if (nodeData != null)
                         {
-                            MonsterTrainAccessibility.LogInfo($"GetMapNodeDataName returned: {nodeName}");
-                            return TextUtilities.StripRichTextTags(nodeName);
-                        }
-                    }
-                    catch { }
-                }
-
-                // Second priority: Try GetData() method to get the actual node data
-                var getDataMethod = uiMethods.FirstOrDefault(m => m.Name == "GetData" && m.GetParameters().Length == 0);
-                if (getDataMethod != null)
-                {
-                    try
-                    {
-                        var data = getDataMethod.Invoke(nodeUI, null);
-                        if (data != null)
-                        {
-                            MonsterTrainAccessibility.LogInfo($"GetData returned: {data.GetType().Name}");
-                            string dataInfo = ExtractNodeDataInfo(data);
-                            if (!string.IsNullOrEmpty(dataInfo))
+                            var nodeDataType2 = nodeData.GetType();
+                            var getTitleMethod = nodeDataType2.GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                            if (getTitleMethod != null)
                             {
-                                return dataInfo;
+                                var locTitle = getTitleMethod.Invoke(nodeData, null) as string;
+                                if (!string.IsNullOrEmpty(locTitle))
+                                {
+                                    locTitle = TextUtilities.CleanSpriteTagsForSpeech(TextUtilities.StripRichTextTags(locTitle));
+                                    if (!string.IsNullOrEmpty(locTitle))
+                                        return locTitle;
+                                }
                             }
+
+                            // Fallback: try other extraction
+                            string dataInfo = ExtractNodeDataInfo(nodeData);
+                            if (!string.IsNullOrEmpty(dataInfo))
+                                return dataInfo;
                         }
                     }
                     catch { }
@@ -1248,10 +1369,54 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 // Get ring/section info and section index for coordinates
                 string ringInfo = GetRingInfo(minimapComponent.transform, out int ringIndex);
 
-                // Get tooltip info (title and body)
+                // Get node title and body.
+                // MinimapNodeMarker stores mapNodeData (MapNodeData) with GetTooltipTitle()/GetTooltipBody().
+                // The tooltipProvider only receives the body (title is set to null), so
+                // we read the mapNodeData directly for the real title.
                 string title = null;
                 string body = null;
-                TooltipTextReader.GetTooltipTitleAndBody(go, out title, out body);
+
+                var markerType = minimapComponent.GetType();
+                var mapNodeDataField = markerType.GetField("mapNodeData",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (mapNodeDataField != null)
+                {
+                    var mapNodeData = mapNodeDataField.GetValue(minimapComponent);
+                    if (mapNodeData != null)
+                    {
+                        var nodeDataType = mapNodeData.GetType();
+                        var getTooltipTitle = nodeDataType.GetMethod("GetTooltipTitle", Type.EmptyTypes);
+                        if (getTooltipTitle != null)
+                            title = getTooltipTitle.Invoke(mapNodeData, null) as string;
+
+                        var getTooltipBody = nodeDataType.GetMethod("GetTooltipBody", Type.EmptyTypes);
+                        if (getTooltipBody != null)
+                            body = getTooltipBody.Invoke(mapNodeData, null) as string;
+                    }
+                }
+
+                // Fallback: try the label TMP_Text on the marker
+                if (string.IsNullOrEmpty(title))
+                {
+                    var labelField = markerType.GetField("label",
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (labelField != null)
+                    {
+                        var labelObj = labelField.GetValue(minimapComponent);
+                        if (labelObj != null)
+                            title = UITextHelper.GetTextFromComponent(labelObj);
+                    }
+                }
+
+                // Last fallback: tooltip provider
+                if (string.IsNullOrEmpty(title))
+                    TooltipTextReader.GetTooltipTitleAndBody(go, out title, out body);
+
+                // Clean up
+                if (!string.IsNullOrEmpty(title))
+                    title = TextUtilities.CleanSpriteTagsForSpeech(TextUtilities.StripRichTextTags(title));
+                if (!string.IsNullOrEmpty(body))
+                    body = TextUtilities.CleanSpriteTagsForSpeech(TextUtilities.StripRichTextTags(body));
 
                 // Build the announcement with coordinate first
                 string coordinate = BuildCoordinate(ringIndex, pathPosition);

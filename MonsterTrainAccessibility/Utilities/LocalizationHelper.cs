@@ -65,6 +65,26 @@ namespace MonsterTrainAccessibility.Utilities
         }
 
         /// <summary>
+        /// Hardcoded display names for TMP sprite assets used in stat/resource icons.
+        /// These must win over I2.Loc term search because the fuzzy substring match
+        /// in FindTerm can return unrelated terms (e.g. "Health" matches a subtype
+        /// term that localizes to "Consumer").
+        /// </summary>
+        private static readonly System.Collections.Generic.Dictionary<string, string> _knownSpriteNames =
+            new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Health", "health" },
+                { "Attack", "attack" },
+                { "Size", "size" },
+                { "Ember", "ember" },
+                { "MagicPower", "magic power" },
+                { "Gold", "gold" },
+                { "Xcost", "X cost" },
+                { "Capacity", "capacity" },
+                { "DragonsHoard", "Dragon's Hoard" },
+            };
+
+        /// <summary>
         /// Look up a sprite name (TMP sprite asset name like "DragonsHoard") and return
         /// its localized display name by searching I2.Loc terms. Returns null if no
         /// suitable term is found — caller should fall back to a heuristic.
@@ -72,6 +92,9 @@ namespace MonsterTrainAccessibility.Utilities
         public static string GetSpriteDisplayName(string spriteName)
         {
             if (string.IsNullOrEmpty(spriteName)) return null;
+
+            if (_knownSpriteNames.TryGetValue(spriteName, out string known))
+                return known;
 
             // Status effect IDs lower-case match well via StatusEffectManager,
             // but generic sprite icons (currency, resources) we look up by term.

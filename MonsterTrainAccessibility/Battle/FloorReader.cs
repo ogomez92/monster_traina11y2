@@ -24,17 +24,10 @@ namespace MonsterTrainAccessibility.Battle
         /// </summary>
         public static string GetFloorDisplayName(int userFloor)
         {
-            switch (userFloor)
-            {
-                case 3: return "Top floor";
-                case 2: return "Middle floor";
-                case 1: return "Bottom floor";
-                case 0: return GetPyreDisplayName();
-                default: return $"Floor {userFloor}";
-            }
+            return Utilities.ModLocalization.FloorName(userFloor);
         }
 
-        public static string GetPyreDisplayName() => "Pyre";
+        public static string GetPyreDisplayName() => Utilities.ModLocalization.Pyre;
 
         /// <summary>
         /// Announce all floors
@@ -44,12 +37,12 @@ namespace MonsterTrainAccessibility.Battle
             try
             {
                 var output = MonsterTrainAccessibility.ScreenReader;
-                output?.Speak("Floor status:", false);
+                output?.Speak("", false); // Start clean; each floor announces itself
 
                 // Monster Train has 3 playable floors + pyre room
-                // Room indices: 0=top floor, 1=middle, 2=bottom, 3=pyre room
+                // Room indices: 0=bottom, 1=middle, 2=top, 3=pyre room
                 // User floors: 1=bottom, 2=middle, 3=top
-                // Iterate user floors from bottom (1) to top (3)
+                // Iterate user floors from top (3) to bottom (1)
                 for (int userFloor = 3; userFloor >= 1; userFloor--)
                 {
                     int roomIndex = userFloor - 1; // Convert user floor to room index (room 0 = bottom)
@@ -143,11 +136,24 @@ namespace MonsterTrainAccessibility.Battle
                 var effectStrings = new List<string>();
                 foreach (var effect in effects)
                 {
-                    string announcement = Core.KeywordManager.GetKeywordAnnouncement(effect.Key);
-                    effectStrings.Add(effect.Value > 1 ? $"{announcement} {effect.Value}" : announcement);
+                    // effect.Key is the raw status ID (e.g. "rage", "armor")
+                    // Localize via CleanStatusName. Use name-only for inline listing
+                    // (full keyword descriptions are too verbose here).
+                    string localizedName = Patches.CharacterStateHelper.CleanStatusName(effect.Key, effect.Value);
+                    if (string.IsNullOrEmpty(localizedName)) continue;
+
+                    // Strip any leaked localization tokens like KEY>>...<<
+                    localizedName = System.Text.RegularExpressions.Regex.Replace(localizedName, @"KEY>>.*?<<", "").Trim();
+                    localizedName = localizedName.TrimEnd(';', ' ');
+                    if (string.IsNullOrEmpty(localizedName)) continue;
+
+                    effectStrings.Add(effect.Value > 1 ? $"{localizedName} {effect.Value}" : localizedName);
                 }
-                sb.Append(". ");
-                sb.Append(string.Join("; ", effectStrings));
+                if (effectStrings.Count > 0)
+                {
+                    sb.Append(". ");
+                    sb.Append(string.Join(", ", effectStrings));
+                }
             }
 
             return sb.ToString();
@@ -227,21 +233,43 @@ namespace MonsterTrainAccessibility.Battle
         {
             try
             {
-                // Convert user-facing floor number (1-3) to internal room index
-                int roomIndex = floorNumber - 1;
+                // userFloor 0 is the pyre room (internal room index 3). Report pyre HP
+                // plus any units present (bosses can occupy the pyre room).
+                int roomIndex = floorNumber == 0 ? 3 : floorNumber - 1;
 
                 var room = GetRoom(roomIndex);
                 if (room == null)
                 {
+                    if (floorNumber == 0)
+                    {
+                        int hp = GetPyreHealth();
+                        int maxHp = GetMaxPyreHealth();
+                        return hp >= 0 ? $"{hp} of {maxHp} health" : GetPyreDisplayName();
+                    }
                     return $"Floor {floorNumber}: Unknown";
                 }
+
+                var parts = new List<string>();
+
+                if (floorNumber == 0)
+                {
+                    int hp = GetPyreHealth();
+                    int maxHp = GetMaxPyreHealth();
+                    if (hp >= 0)
+                        parts.Add($"{hp} of {maxHp} health");
+                }
+
+                // Room-level effects: destroyed by boss, summon-blocked by relics, etc.
+                // Surface these before capacity so the most important info lands first.
+                string roomState = GetRoomStateString(room);
+                if (!string.IsNullOrEmpty(roomState))
+                    parts.Add(roomState);
 
                 string capacity = GetMonsterCapacityString(room);
                 string attachments = GetRoomAttachmentsString(room);
                 string corruption = GetRoomCorruptionString(room);
                 var units = UnitInfoHelper.GetUnitsInRoom(room);
 
-                var parts = new List<string>();
                 if (!string.IsNullOrEmpty(capacity))
                     parts.Add(capacity);
                 if (!string.IsNullOrEmpty(attachments))
@@ -251,7 +279,8 @@ namespace MonsterTrainAccessibility.Battle
 
                 if (units.Count == 0)
                 {
-                    parts.Add("Empty");
+                    if (floorNumber != 0)
+                        parts.Add("Empty");
                 }
                 else
                 {
@@ -517,6 +546,80 @@ namespace MonsterTrainAccessibility.Battle
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"ResolveModifierDescription error: {ex}");
+                return null;
+            }
+        }
+
+        // Cached reflection bits for RoomState-level effects (destroyed / summon-blocked).
+        private static System.Reflection.MethodInfo _isRoomEnabledMethod;
+        private static System.Reflection.MethodInfo _isRoomSummonBlockedMethod;
+        private static object _cachedRelicManager;
+        private static float _lastRelicManagerLookup;
+
+        private static object FindRelicManager()
+        {
+            float now = UnityEngine.Time.unscaledTime;
+            if (_cachedRelicManager != null && now - _lastRelicManagerLookup < 30f)
+                return _cachedRelicManager;
+            _lastRelicManagerLookup = now;
+            try
+            {
+                var agmType = HarmonyLib.AccessTools.TypeByName("AllGameManagers");
+                var instance = agmType?.GetProperty("Instance",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                var getRelic = agmType?.GetMethod("GetRelicManager", Type.EmptyTypes);
+                _cachedRelicManager = getRelic?.Invoke(instance, null);
+            }
+            catch { _cachedRelicManager = null; }
+            return _cachedRelicManager;
+        }
+
+        /// <summary>
+        /// Surface room-level effects like "Destroyed" (boss room-destroy action) or
+        /// "Summon blocked" (relic effect). Corruption and attachments are handled
+        /// separately — this captures the catch-all boolean states on the RoomState.
+        /// </summary>
+        private string GetRoomStateString(object room)
+        {
+            if (room == null) return null;
+            try
+            {
+                var roomType = room.GetType();
+                if (_isRoomEnabledMethod == null || _isRoomEnabledMethod.DeclaringType != roomType)
+                {
+                    _isRoomEnabledMethod = roomType.GetMethod("IsRoomEnabled", Type.EmptyTypes);
+                    _isRoomSummonBlockedMethod = roomType.GetMethod("IsRoomSummonBlocked");
+                }
+
+                var states = new List<string>();
+
+                if (_isRoomEnabledMethod != null)
+                {
+                    var result = _isRoomEnabledMethod.Invoke(room, null);
+                    if (result is bool enabled && !enabled)
+                        states.Add("Destroyed");
+                }
+
+                if (_isRoomSummonBlockedMethod != null)
+                {
+                    var relicManager = FindRelicManager();
+                    if (relicManager != null)
+                    {
+                        try
+                        {
+                            var result = _isRoomSummonBlockedMethod.Invoke(room, new[] { relicManager });
+                            if (result is bool blocked && blocked)
+                                states.Add("Summon blocked");
+                        }
+                        catch { }
+                    }
+                }
+
+                return states.Count > 0 ? string.Join(". ", states) : null;
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetRoomStateString error: {ex}");
                 return null;
             }
         }

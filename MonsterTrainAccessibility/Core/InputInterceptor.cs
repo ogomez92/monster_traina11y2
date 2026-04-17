@@ -289,7 +289,7 @@ namespace MonsterTrainAccessibility.Core
             int gold = GetCurrentGold();
             if (gold >= 0)
             {
-                MonsterTrainAccessibility.ScreenReader?.Speak($"{gold} gold", false);
+                MonsterTrainAccessibility.ScreenReader?.Speak($"{gold} {Utilities.ModLocalization.Gold}", false);
             }
             else
             {

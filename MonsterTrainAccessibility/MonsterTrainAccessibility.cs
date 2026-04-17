@@ -219,6 +219,16 @@ namespace MonsterTrainAccessibility
             MoonPhasePatch.TryPatch(_harmony);
             PyreHealPatch.TryPatch(_harmony);
             WaveStartPatch.TryPatch(_harmony);
+            EnergyModifiedPatch.TryPatch(_harmony);
+            DrawCountModifiedPatch.TryPatch(_harmony);
+            PyreArmorPatch.TryPatch(_harmony);
+            SacrificePatch.TryPatch(_harmony);
+            DebuffHPPatch.TryPatch(_harmony);
+            TriggerAddedPatch.TryPatch(_harmony);
+            TriggerRemovedPatch.TryPatch(_harmony);
+            CardUpgradeAppliedPatch.TryPatch(_harmony);
+            DrawSpecificCardPatch.TryPatch(_harmony);
+            DiscardHandPatch.TryPatch(_harmony);
 
             // Card event patches
             CardDrawPatch.TryPatch(_harmony);
@@ -290,6 +300,7 @@ namespace MonsterTrainAccessibility
                 new SoulforgeHelp(),           // Priority 70 - soulforge crafting
                 new EventHelp(),               // Priority 70
                 new RewardsHelp(),             // Priority 75 - post-battle rewards
+                new GameOverHelp(),            // Priority 80 - defeat / victory screen
                 new CardDraftHelp(),           // Priority 80
                 new ChampionUpgradeHelp(),     // Priority 80 - champion upgrade
                 new SoulDraftHelp(),           // Priority 80 - soul draft

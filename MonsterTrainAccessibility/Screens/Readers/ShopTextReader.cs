@@ -236,7 +236,11 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
-        /// Extract info from MerchantGoodDetailsUI (card/relic for sale)
+        /// Extract info from MerchantGoodDetailsUI (card/relic/enhancer for sale).
+        /// Structure: MerchantGoodDetailsUI → rewardUI (RewardDetailsUI)
+        ///   → relicUI (RelicInfoUI with titleLabel + descriptionLabel)
+        ///   → cardUI (CardUI)
+        ///   → genericRewardUI (RewardIconUI)
         /// </summary>
         public static string ExtractMerchantGoodInfo(Component goodUI)
         {
@@ -247,22 +251,100 @@ namespace MonsterTrainAccessibility.Screens.Readers
 
                 // Look for rewardUI field - this contains the actual reward data
                 var rewardUIField = fields.FirstOrDefault(f => f.Name == "rewardUI");
-                if (rewardUIField != null)
+                object rewardUI = rewardUIField?.GetValue(goodUI);
+
+                if (rewardUI != null)
                 {
-                    var rewardUI = rewardUIField.GetValue(goodUI);
-                    if (rewardUI != null)
+                    var rdType = rewardUI.GetType();
+                    var rdFields = rdType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    // Detect the reward type so we know which child UI to read.
+                    // RewardDetailsUI leaves all of relicUI / cardUI / genericRewardUI alive
+                    // and toggles which GameObject is active per reward. The inactive ones
+                    // retain stale label text (the game ships a "This should be the blessing
+                    // description, but something went wrong." placeholder on RelicInfoUI's
+                    // TMP asset), so we have to avoid reading them.
+                    string rewardDataTypeName = null;
+                    var rewardDataField = rdFields.FirstOrDefault(f =>
+                        f.Name == "<RewardData>k__BackingField" || f.Name == "rewardData" ||
+                        f.Name.IndexOf("RewardData", StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (rewardDataField != null)
                     {
-                        string rewardInfo = ExtractRewardUIInfo(rewardUI);
-                        if (!string.IsNullOrEmpty(rewardInfo))
+                        var rewardDataVal = rewardDataField.GetValue(rewardUI);
+                        if (rewardDataVal != null)
+                            rewardDataTypeName = rewardDataVal.GetType().Name;
+                    }
+
+                    var cardUIField = rdFields.FirstOrDefault(f => f.Name == "cardUI");
+                    var relicUIField = rdFields.FirstOrDefault(f => f.Name == "relicUI");
+
+                    bool cardUIActive = false;
+                    if (cardUIField?.GetValue(rewardUI) is Component cardComp)
+                        cardUIActive = cardComp.gameObject.activeInHierarchy;
+
+                    bool isCardReward = cardUIActive ||
+                        (rewardDataTypeName != null && rewardDataTypeName.Contains("CardRewardData"));
+
+                    // For cards, delegate to CardUI extraction FIRST. Do this before relicUI
+                    // so stale RelicInfoUI labels never win for card rewards.
+                    if (isCardReward && cardUIField != null)
+                    {
+                        var cardUIObj = cardUIField.GetValue(rewardUI);
+                        if (cardUIObj != null)
                         {
-                            // Try to get price from parent BuyButton
-                            string price = GetPriceFromBuyButton(goodUI.gameObject);
-                            if (!string.IsNullOrEmpty(price))
+                            string cardInfo = CardTextReader.ExtractCardUIInfo(cardUIObj);
+                            if (!string.IsNullOrEmpty(cardInfo))
                             {
-                                return $"{rewardInfo}. {price}";
+                                string price = GetPriceFromBuyButton(goodUI.gameObject);
+                                if (!string.IsNullOrEmpty(price))
+                                    return $"{cardInfo}. {price}";
+                                return cardInfo;
                             }
-                            return rewardInfo;
                         }
+                    }
+
+                    // For enhancers/relics/sins, read from RelicInfoUI labels.
+                    if (!isCardReward && relicUIField != null)
+                    {
+                        var relicUIObj = relicUIField.GetValue(rewardUI);
+                        if (relicUIObj is Component relicComp && relicComp.gameObject.activeInHierarchy)
+                        {
+                            string relicText = ReadRelicInfoUILabels(relicComp);
+                            if (!string.IsNullOrEmpty(relicText))
+                            {
+                                string price = GetPriceFromBuyButton(goodUI.gameObject);
+                                if (!string.IsNullOrEmpty(price))
+                                    return $"{relicText}. {price}";
+                                return relicText;
+                            }
+                        }
+                    }
+
+                    // Fallback to CardUI for any other case (e.g. data type not recognized).
+                    if (!isCardReward && cardUIField != null)
+                    {
+                        var cardUIObj = cardUIField.GetValue(rewardUI);
+                        if (cardUIObj != null)
+                        {
+                            string cardInfo = CardTextReader.ExtractCardUIInfo(cardUIObj);
+                            if (!string.IsNullOrEmpty(cardInfo))
+                            {
+                                string price = GetPriceFromBuyButton(goodUI.gameObject);
+                                if (!string.IsNullOrEmpty(price))
+                                    return $"{cardInfo}. {price}";
+                                return cardInfo;
+                            }
+                        }
+                    }
+
+                    // Fallback: try the full ExtractRewardUIInfo path
+                    string rewardInfo = ExtractRewardUIInfo(rewardUI);
+                    if (!string.IsNullOrEmpty(rewardInfo))
+                    {
+                        string price = GetPriceFromBuyButton(goodUI.gameObject);
+                        if (!string.IsNullOrEmpty(price))
+                            return $"{rewardInfo}. {price}";
+                        return rewardInfo;
                     }
                 }
 
@@ -280,9 +362,7 @@ namespace MonsterTrainAccessibility.Screens.Readers
                             {
                                 string price = GetPriceFromBuyButton(goodUI.gameObject);
                                 if (!string.IsNullOrEmpty(price))
-                                {
                                     return $"{cardInfo}. {price}";
-                                }
                                 return cardInfo;
                             }
                         }
@@ -294,6 +374,106 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 MonsterTrainAccessibility.LogError($"Error extracting merchant good info: {ex.Message}");
             }
 
+            return null;
+        }
+
+        /// <summary>
+        /// Read the titleLabel and descriptionLabel directly from a RelicInfoUI component.
+        /// This works for enhancers, relics, and sins even when relicData is null.
+        /// </summary>
+        private static string ReadRelicInfoUILabels(Component relicInfoUI)
+        {
+            try
+            {
+                var riType = relicInfoUI.GetType();
+                var riFields = riType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                string title = null;
+                string description = null;
+
+                var titleField = riFields.FirstOrDefault(f => f.Name == "titleLabel");
+                if (titleField != null)
+                {
+                    var titleLabel = titleField.GetValue(relicInfoUI);
+                    if (titleLabel != null)
+                        title = UITextHelper.GetTextFromComponent(titleLabel);
+                }
+
+                var descField = riFields.FirstOrDefault(f => f.Name == "descriptionLabel");
+                if (descField != null)
+                {
+                    var descLabel = descField.GetValue(relicInfoUI);
+                    if (descLabel != null)
+                        description = UITextHelper.GetTextFromComponent(descLabel);
+                }
+
+                // RelicInfoUI retains stale/default label text when the component is
+                // inactive OR when it's attached to a RewardDetailsUI showing a different
+                // reward type. The game ships a placeholder like "This should be the
+                // blessing description, but something went wrong." on its default TMP
+                // label asset — never useful to speak. If we see it in either slot,
+                // treat the whole RelicInfoUI as having no content so the caller can
+                // fall back to the CardUI/reward data path.
+                bool IsBrokenText(string s) => !string.IsNullOrEmpty(s) &&
+                    (s.IndexOf("This should be", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     s.IndexOf("something went wrong", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                bool titleBroken = IsBrokenText(title);
+                bool descBroken = IsBrokenText(description);
+
+                // Prefer relicData lookup whenever we suspect bad UI text.
+                if (titleBroken || descBroken || string.IsNullOrEmpty(title))
+                {
+                    var relicDataProp = riType.GetProperty("relicData", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    var relicData = relicDataProp?.GetValue(relicInfoUI);
+                    if (relicData != null)
+                    {
+                        var rdType = relicData.GetType();
+                        if (titleBroken || string.IsNullOrEmpty(title))
+                        {
+                            var getName = rdType.GetMethod("GetName", Type.EmptyTypes);
+                            var rdName = getName?.Invoke(relicData, null) as string;
+                            title = string.IsNullOrEmpty(rdName) ? null : rdName;
+                        }
+                        if (descBroken || string.IsNullOrEmpty(description))
+                        {
+                            var getDesc = rdType.GetMethod("GetDescription", Type.EmptyTypes);
+                            var rdDesc = getDesc?.Invoke(relicData, null) as string;
+                            description = string.IsNullOrEmpty(rdDesc) || IsBrokenText(rdDesc) ? null : rdDesc;
+                        }
+                    }
+                    else
+                    {
+                        // No backing relic data — the UI is just stale/empty. Bail so
+                        // the caller's other branches (cardUI, generic reward) can run.
+                        return null;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(title) || IsBrokenText(title)) return null;
+
+                title = TextUtilities.StripRichTextTags(title);
+                var sb = new StringBuilder();
+                sb.Append(title);
+
+                if (!string.IsNullOrEmpty(description))
+                {
+                    description = TextUtilities.CleanSpriteTagsForSpeech(description);
+                    sb.Append($". {description}");
+
+                    // Extract keyword definitions from the description
+                    var keywords = new List<string>();
+                    CardKeywordReader.ExtractKeywordsFromDescription(description, keywords);
+                    if (keywords.Count > 0)
+                        sb.Append($". Keywords: {string.Join(". ", keywords)}");
+                }
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"ReadRelicInfoUILabels error: {ex.Message}");
+            }
             return null;
         }
 
@@ -352,12 +532,14 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     }
                 }
 
-                // Priority 4: Check relicUI field
+                // Priority 4: Check relicUI field (only if actively displayed —
+                // the inactive RelicInfoUI retains the game's default placeholder text
+                // "This should be the blessing description, but something went wrong.")
                 var relicUIField = fields.FirstOrDefault(f => f.Name == "relicUI");
                 if (relicUIField != null)
                 {
                     var relicUI = relicUIField.GetValue(rewardUI);
-                    if (relicUI != null)
+                    if (relicUI is Component relicUIComp && relicUIComp.gameObject.activeInHierarchy)
                     {
                         string relicInfo = ExtractRelicUIInfo(relicUI);
                         if (!string.IsNullOrEmpty(relicInfo))
