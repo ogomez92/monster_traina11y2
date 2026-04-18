@@ -1199,7 +1199,9 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 if (!string.IsNullOrEmpty(serviceName))
                 {
                     serviceName = TextUtilities.StripRichTextTags(serviceName);
-                    string price = GetShopItemPrice(serviceUI);
+                    // MerchantServiceUI has no direct cost field — cost lives on the
+                    // BuyButton child (field 'cost') or GoodState.Cost property.
+                    string price = GetPriceFromBuyButton(serviceUI.gameObject);
 
                     List<string> parts = new List<string> { serviceName };
 

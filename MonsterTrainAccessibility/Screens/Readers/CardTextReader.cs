@@ -670,9 +670,32 @@ namespace MonsterTrainAccessibility.Screens.Readers
             {
                 // Prefer the parameterized GetCardText(stats, save, includeTraits=true) variant —
                 // the game's CardData.GetCardText fills in dynamic effect text only when
-                // includeCurrentTraitEffectText is true. The parameterless overload just
-                // returns the raw stored template, which can be missing effect content.
+                // includeCurrentTraitEffectText is true and stats/save are real. Passing
+                // nulls leaves placeholders like "({0} available)" unresolved, so we look
+                // up the live managers from AllGameManagers.
+                var (cardStats, saveMgr, relicMgr) = Utilities.ReflectionHelper.GetGameManagers();
+
                 var cardTextMethods = type.GetMethods().Where(m => m.Name == "GetCardText").ToArray();
+
+                // Game signature is GetCardText(CardStatistics, SaveManager, bool includeCurrentTraitEffectText).
+                // Try that specific shape first so the right managers land in the right slots.
+                foreach (var method in cardTextMethods)
+                {
+                    var ps = method.GetParameters();
+                    if (ps.Length != 3) continue;
+                    if (ps[0].ParameterType.Name != "CardStatistics") continue;
+                    if (ps[1].ParameterType.Name != "SaveManager") continue;
+                    if (ps[2].ParameterType != typeof(bool)) continue;
+                    try
+                    {
+                        var desc = method.Invoke(cardState, new[] { cardStats, saveMgr, (object)true }) as string;
+                        if (!string.IsNullOrEmpty(desc)) return desc;
+                    }
+                    catch { }
+                }
+
+                // Fallback: fill any parameterized overload by type name, still using the
+                // real managers when they match.
                 foreach (var method in cardTextMethods)
                 {
                     var ps = method.GetParameters();
@@ -682,10 +705,17 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         var args = new object[ps.Length];
                         for (int i = 0; i < ps.Length; i++)
                         {
-                            if (ps[i].ParameterType == typeof(bool))
+                            var pt = ps[i].ParameterType;
+                            if (pt == typeof(bool))
                                 args[i] = true;
-                            else if (ps[i].ParameterType.IsValueType)
-                                args[i] = Activator.CreateInstance(ps[i].ParameterType);
+                            else if (pt.Name == "CardStatistics")
+                                args[i] = cardStats;
+                            else if (pt.Name == "SaveManager")
+                                args[i] = saveMgr;
+                            else if (pt.Name == "RelicManager")
+                                args[i] = relicMgr;
+                            else if (pt.IsValueType)
+                                args[i] = Activator.CreateInstance(pt);
                             else
                                 args[i] = null;
                         }

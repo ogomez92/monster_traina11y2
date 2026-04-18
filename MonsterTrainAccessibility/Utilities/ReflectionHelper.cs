@@ -93,5 +93,30 @@ namespace MonsterTrainAccessibility.Utilities
             catch { }
             return null;
         }
+
+        /// <summary>
+        /// Fetch (CardStatistics, SaveManager, RelicManager) from AllGameManagers.Instance.
+        /// Needed so that GetCardText / GetCurrentEffectText can format placeholders like
+        /// "({0} available)" with real values instead of returning the raw template.
+        /// Any missing manager comes back null — callers should tolerate nulls.
+        /// </summary>
+        public static (object cardStatistics, object saveManager, object relicManager) GetGameManagers()
+        {
+            try
+            {
+                var agmType = GetTypeFromAssemblies("AllGameManagers");
+                if (agmType == null) return (null, null, null);
+
+                var instance = agmType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                if (instance == null) return (null, null, null);
+
+                var cardStats = agmType.GetMethod("GetCardStatistics", Type.EmptyTypes)?.Invoke(instance, null);
+                var saveMgr = agmType.GetMethod("GetSaveManager", Type.EmptyTypes)?.Invoke(instance, null);
+                var relicMgr = agmType.GetMethod("GetRelicManager", Type.EmptyTypes)?.Invoke(instance, null);
+                return (cardStats, saveMgr, relicMgr);
+            }
+            catch { }
+            return (null, null, null);
+        }
     }
 }

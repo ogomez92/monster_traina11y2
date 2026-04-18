@@ -227,6 +227,7 @@ namespace MonsterTrainAccessibility
             TriggerAddedPatch.TryPatch(_harmony);
             TriggerRemovedPatch.TryPatch(_harmony);
             CardUpgradeAppliedPatch.TryPatch(_harmony);
+            ReanimatePatch.TryPatch(_harmony);
             DrawSpecificCardPatch.TryPatch(_harmony);
             DiscardHandPatch.TryPatch(_harmony);
 

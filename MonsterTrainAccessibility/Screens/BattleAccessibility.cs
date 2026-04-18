@@ -710,7 +710,14 @@ namespace MonsterTrainAccessibility.Screens
         {
             if (!IsInBattle) return;
 
-            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName}: {upgradeSummary}");
+            MonsterTrainAccessibility.ScreenReader?.Queue(upgradeSummary);
+        }
+
+        public void OnUnitReanimated(string unitName)
+        {
+            if (!IsInBattle) return;
+
+            MonsterTrainAccessibility.ScreenReader?.Queue($"{unitName} reanimated");
         }
 
         #endregion

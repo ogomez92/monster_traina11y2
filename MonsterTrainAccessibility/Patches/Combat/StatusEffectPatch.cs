@@ -25,18 +25,19 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 var characterType = AccessTools.TypeByName("CharacterState");
                 if (characterType != null)
                 {
-                    // AddStatusEffect has multiple overloads - try to find a specific one
+                    // AddStatusEffect has multiple overloads. Patch the one with the most
+                    // parameters — the simpler overloads forward to it, but card/relic effects
+                    // (CardEffectAddStatusEffect etc.) call the full overload directly, so
+                    // patching only the simple one misses every status effect applied by a card.
                     System.Reflection.MethodInfo method = null;
 
-                    // Get all methods named AddStatusEffect
                     var methods = characterType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                     foreach (var m in methods)
                     {
                         if (m.Name == "AddStatusEffect")
                         {
                             var parameters = m.GetParameters();
-                            // Prefer the simplest overload
-                            if (method == null || parameters.Length < method.GetParameters().Length)
+                            if (method == null || parameters.Length > method.GetParameters().Length)
                             {
                                 method = m;
                             }

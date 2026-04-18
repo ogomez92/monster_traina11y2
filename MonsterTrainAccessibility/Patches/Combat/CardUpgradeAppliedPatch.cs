@@ -1,4 +1,5 @@
 using HarmonyLib;
+using MonsterTrainAccessibility.Utilities;
 using System;
 using System.Reflection;
 
@@ -50,7 +51,7 @@ namespace MonsterTrainAccessibility.Patches.Combat
                     return;
 
                 string unitName = CharacterStateHelper.GetUnitName(__instance);
-                string upgradeSummary = GetUpgradeSummary(__0);
+                string upgradeSummary = GetUpgradeSummary(unitName, __0);
 
                 if (string.IsNullOrEmpty(upgradeSummary)) return;
 
@@ -68,27 +69,29 @@ namespace MonsterTrainAccessibility.Patches.Combat
             }
         }
 
-        private static string GetUpgradeSummary(object cardUpgradeState)
+        private static string GetUpgradeSummary(string unitName, object cardUpgradeState)
         {
             try
             {
                 var type = cardUpgradeState.GetType();
                 var parts = new System.Collections.Generic.List<string>();
 
-                int attack = GetIntMethod(type, cardUpgradeState, "GetAttackDamage");
-                if (attack != 0) parts.Add($"{FormatDelta(attack)} ATK");
+                int attack = GetIntMethod(type, cardUpgradeState, "GetAttackDamage")
+                           + GetIntMethod(type, cardUpgradeState, "GetAttackDamageBuff");
+                if (attack != 0) parts.Add(ModLocalization.AttackBuffed(unitName, attack));
 
                 int hp = GetIntMethod(type, cardUpgradeState, "GetAdditionalHP");
-                if (hp != 0) parts.Add($"{FormatDelta(hp)} HP");
+                if (hp != 0) parts.Add(ModLocalization.MaxHPBuffed(unitName, hp));
 
                 int size = GetIntMethod(type, cardUpgradeState, "GetAdditionalSize");
-                if (size != 0) parts.Add($"{FormatDelta(size)} SIZE");
-
-                int attackBuff = GetIntMethod(type, cardUpgradeState, "GetAttackDamageBuff");
-                if (attackBuff != 0) parts.Add($"{FormatDelta(attackBuff)} ATK");
+                if (size != 0)
+                {
+                    string verb = size > 0 ? "gains" : "loses";
+                    parts.Add($"{unitName} {verb} {Math.Abs(size)} size");
+                }
 
                 if (parts.Count == 0) return null;
-                return string.Join(", ", parts);
+                return string.Join(". ", parts);
             }
             catch { }
             return null;

@@ -68,7 +68,14 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 object characterData = null;
                 var charField = optionType.GetField("pyreCharacterData", BindingFlags.Public | BindingFlags.Instance);
                 if (charField != null) characterData = charField.GetValue(option);
-                if (characterData == null) return isLocked ? "Locked pyre heart" : null;
+                if (characterData == null)
+                {
+                    if (!isLocked) return null;
+                    var fallbackProgression = TryGetProgressionText(itemUi.transform);
+                    return string.IsNullOrEmpty(fallbackProgression)
+                        ? "Locked pyre heart"
+                        : $"Locked pyre heart: {fallbackProgression}";
+                }
 
                 var charType = characterData.GetType();
 
@@ -126,7 +133,11 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 {
                     sb.Append(", Locked");
 
-                    string unlockText = TryGetUnlockText(pyreHeartData);
+                    // Prefer the on-screen ProgressionObjective labels because they include
+                    // live progress ("0/7"). Fall back to the UnlockCriteria description key
+                    // with paramInt substitution if the UI labels aren't populated yet.
+                    string unlockText = TryGetProgressionText(itemUi.transform)
+                        ?? TryGetUnlockText(pyreHeartData);
                     if (!string.IsNullOrEmpty(unlockText))
                     {
                         sb.Append(": ");
@@ -142,7 +153,8 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 if (!string.IsNullOrEmpty(description))
                 {
                     sb.Append(". ");
-                    sb.Append(TextUtilities.StripRichTextTags(description));
+                    sb.Append(TextUtilities.StripRichTextTags(
+                        TextUtilities.CleanSpriteTagsForSpeech(description)));
                 }
 
                 return sb.ToString();
@@ -150,6 +162,64 @@ namespace MonsterTrainAccessibility.Screens.Readers
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error getting pyre heart item text: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static string TryGetProgressionText(Transform itemRoot)
+        {
+            if (itemRoot == null) return null;
+            try
+            {
+                var progressionRoot = UITextHelper.FindChildRecursive(itemRoot, "ProgressionObjective");
+                if (progressionRoot == null) return null;
+
+                var descriptionLabel = UITextHelper.FindChildRecursive(progressionRoot, "Description Label");
+                var numericLabel = UITextHelper.FindChildRecursive(progressionRoot, "Numeric Label");
+
+                string description = ReadLabelText(descriptionLabel);
+                string numeric = ReadLabelText(numericLabel);
+
+                // Game clamps current to max in the label (e.g. "55/55") even when the
+                // unlock hasn't actually been granted — suppress the numeric in that case
+                // so the announcement doesn't falsely imply the heart is ready to unlock.
+                if (!string.IsNullOrEmpty(numeric) && IsProgressComplete(numeric))
+                    numeric = null;
+
+                if (string.IsNullOrEmpty(description) && string.IsNullOrEmpty(numeric))
+                    return null;
+
+                if (!string.IsNullOrEmpty(description) && !string.IsNullOrEmpty(numeric))
+                    return $"{description} ({numeric})";
+
+                return description ?? numeric;
+            }
+            catch { }
+            return null;
+        }
+
+        private static bool IsProgressComplete(string numeric)
+        {
+            if (string.IsNullOrEmpty(numeric)) return false;
+            var parts = numeric.Split('/');
+            if (parts.Length != 2) return false;
+            if (!int.TryParse(parts[0].Trim(), out int cur)) return false;
+            if (!int.TryParse(parts[1].Trim(), out int max)) return false;
+            return max > 0 && cur >= max;
+        }
+
+        private static string ReadLabelText(Transform t)
+        {
+            if (t == null) return null;
+            foreach (var component in t.GetComponents<Component>())
+            {
+                if (component == null) continue;
+                string typeName = component.GetType().Name;
+                if (typeName.Contains("Text") || typeName.Contains("TMP"))
+                {
+                    var text = UITextHelper.GetTextFromComponent(component);
+                    if (!string.IsNullOrEmpty(text)) return text;
+                }
             }
             return null;
         }

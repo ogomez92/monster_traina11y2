@@ -36,8 +36,10 @@ namespace MonsterTrainAccessibility.Patches.Combat
             }
         }
 
-        // __instance is the CharacterState being healed, __0 is the heal amount
-        public static void Prefix(object __instance, int __0)
+        // CharacterState.ApplyHeal(int amount, bool triggerOnHeal = true, CardState responsibleCard = null,
+        //                          RelicState relicState = null, bool fromMaxHPChange = false, ...)
+        // __instance = target CharacterState, __0..__4 = the visible args we care about.
+        public static void Prefix(object __instance, int __0, bool __1, object __2, object __3, bool __4)
         {
             try
             {
@@ -47,6 +49,10 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 int amount = __0;
                 if (amount <= 0 || __instance == null)
                     return;
+
+                // Heals caused by max HP increases are already announced by MaxHPBuffPatch;
+                // skip them here to avoid the "gains N max health" + "healed N health" combo.
+                if (__4) return;
 
                 // Check if unit is alive before announcing heal
                 var charType = __instance.GetType();
@@ -59,22 +65,55 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 }
 
                 string targetName = CharacterStateHelper.GetUnitName(__instance);
+                string sourceName = GetHealSourceName(__2, __3);
 
                 // Deduplicate rapid heals on same unit
                 float currentTime = UnityEngine.Time.unscaledTime;
-                string healKey = $"{targetName}_{amount}";
+                string healKey = $"{targetName}_{amount}_{sourceName}";
                 if (healKey == _lastHealKey && currentTime - _lastHealTime < 0.3f)
                     return;
 
                 _lastHealKey = healKey;
                 _lastHealTime = currentTime;
 
-                MonsterTrainAccessibility.ScreenReader?.Speak(ModLocalization.Phrase("Healed", targetName, amount));
+                string message = string.IsNullOrEmpty(sourceName)
+                    ? ModLocalization.Phrase("Healed", targetName, amount)
+                    : ModLocalization.Phrase("HealedBy", targetName, amount, sourceName);
+                MonsterTrainAccessibility.ScreenReader?.Speak(message);
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in heal patch: {ex.Message}");
             }
+        }
+
+        private static string GetHealSourceName(object responsibleCard, object relicState)
+        {
+            try
+            {
+                if (responsibleCard != null)
+                {
+                    var getTitle = responsibleCard.GetType().GetMethod("GetTitle", Type.EmptyTypes);
+                    if (getTitle != null)
+                    {
+                        var result = getTitle.Invoke(responsibleCard, null) as string;
+                        if (!string.IsNullOrEmpty(result))
+                            return Utilities.TextUtilities.StripRichTextTags(result).Trim();
+                    }
+                }
+                if (relicState != null)
+                {
+                    var getName = relicState.GetType().GetMethod("GetName", Type.EmptyTypes);
+                    if (getName != null)
+                    {
+                        var result = getName.Invoke(relicState, null) as string;
+                        if (!string.IsNullOrEmpty(result))
+                            return Utilities.TextUtilities.StripRichTextTags(result).Trim();
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
     }
 }

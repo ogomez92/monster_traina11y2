@@ -18,6 +18,47 @@ namespace MonsterTrainAccessibility.Screens.Readers
         private static bool _keywordCacheInitialized = false;
 
         /// <summary>
+        /// Fill unresolved "{0}" / "{1}" / "{2}" placeholders in a localized tooltip string.
+        /// The game formats these at display time with values from the trait's paramInt /
+        /// paramMinInt / paramMaxInt; when we pull the string by reflection we miss that
+        /// step, so substitute those values ourselves. Returns the original string when
+        /// no placeholders remain or no substitution is available.
+        /// </summary>
+        private static string ResolveTraitPlaceholders(object traitState, Type traitType, string text)
+        {
+            if (string.IsNullOrEmpty(text) || traitState == null || !text.Contains("{"))
+                return text;
+
+            try
+            {
+                // Map each well-known param getter to the {N} slot the game treats as its default.
+                var paramMap = new (string method, int slot)[]
+                {
+                    ("GetParamInt", 0),
+                    ("GetParamMinInt", 1),
+                    ("GetParamMaxInt", 2),
+                };
+
+                foreach (var (methodName, slot) in paramMap)
+                {
+                    string token = "{" + slot + "}";
+                    if (!text.Contains(token)) continue;
+
+                    var method = traitType.GetMethod(methodName, Type.EmptyTypes);
+                    if (method == null) continue;
+
+                    var value = method.Invoke(traitState, null);
+                    if (value == null) continue;
+
+                    text = text.Replace(token, value.ToString());
+                }
+            }
+            catch { }
+
+            return text;
+        }
+
+        /// <summary>
         /// Build the full "Keywords: ..." string for a card by aggregating tooltips
         /// from trait states, effect data, status effects, and description text.
         /// Returns formatted string of keyword definitions.
@@ -237,6 +278,12 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 title = TextUtilities.StripRichTextTags(title);
                 body = TextUtilities.StripRichTextTags(body);
 
+                // Resolve stray "{0}" / "{1}" placeholders the tooltip key localizes to.
+                // A trait's paramInt is the overwhelmingly common substitution (e.g. Consume's
+                // remaining-plays counter localizes to "({0} available)"), so try that first.
+                title = ResolveTraitPlaceholders(traitState, traitType, title);
+                body = ResolveTraitPlaceholders(traitState, traitType, body);
+
                 if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(body))
                 {
                     MonsterTrainAccessibility.LogInfo($"Found trait tooltip: {title}: {body}");
@@ -333,6 +380,9 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         foreach (var tooltip in additionalTooltips)
                         {
                             string text = ExtractAdditionalTooltipData(tooltip);
+                            // The additional-tooltip format strings share the same {N} convention
+                            // as trait tooltips, so let the effect's own paramInt/min/max back-fill them.
+                            text = ResolveTraitPlaceholders(effect, effectType, text);
                             if (!string.IsNullOrEmpty(text) && !tooltips.Contains(text))
                                 tooltips.Add(text);
                         }
@@ -477,6 +527,7 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     {
                         // Look up trait definition
                         string tooltip = GetTraitDefinition(traitName);
+                        tooltip = ResolveTraitPlaceholders(trait, traitType, tooltip);
                         if (!string.IsNullOrEmpty(tooltip) && !tooltips.Contains(tooltip))
                             tooltips.Add(tooltip);
                     }

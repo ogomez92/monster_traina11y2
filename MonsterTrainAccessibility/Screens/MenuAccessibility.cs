@@ -702,6 +702,14 @@ namespace MonsterTrainAccessibility.Screens
                 return text;
             }
 
+            // 3.5d Check for Soulforge soul selection tiles (SoulSelectionItemUI).
+            // Reads the side-panel detail block which updates as the user navigates.
+            text = SoulforgeTextReader.GetSoulSelectionItemText(go);
+            if (!string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
             // 3.6 Check for champion choice buttons
             text = ClanSelectionTextReader.GetChampionChoiceText(go);
             if (!string.IsNullOrEmpty(text))
