@@ -25,6 +25,9 @@ namespace MonsterTrainAccessibility.Utilities
         /// <summary>Localized "gold" currency name.</summary>
         public static string Gold => ModTerm("Gold");
 
+        /// <summary>Localized "Dragon's Hoard" currency name.</summary>
+        public static string DragonsHoard => ModTerm("DragonsHoard");
+
         /// <summary>Localized "Pyre" name.</summary>
         public static string Pyre => Cached("pyre",
             () => StripAndTrim(LocalizationHelper.Localize("Character_Pyre"))
@@ -176,6 +179,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "attack",
                     ["Gold"] = "gold",
                     ["Ember"] = "ember",
+                    ["DragonsHoard"] = "Dragon's Hoard",
                     // Combat-event phrases. Placeholders: see PhraseKeys below.
                     ["Healed"] = "{0} healed {1} health",
                     ["HealedBy"] = "{0} healed {1} health from {2}",
@@ -196,6 +200,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "ataque",
                     ["Gold"] = "oro",
                     ["Ember"] = "ascua",
+                    ["DragonsHoard"] = "Tesoro del Dragón",
                     ["Healed"] = "{0} recupera {1} de vida",
                     ["HealedBy"] = "{0} recupera {1} de vida con {2}",
                     ["GainsAttack"] = "{0} gana {1} de ataque",
@@ -215,6 +220,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "attaque",
                     ["Gold"] = "or",
                     ["Ember"] = "braise",
+                    ["DragonsHoard"] = "Trésor du Dragon",
                     ["Healed"] = "{0} récupère {1} PV",
                     ["HealedBy"] = "{0} récupère {1} PV grâce à {2}",
                     ["GainsAttack"] = "{0} gagne {1} en attaque",
@@ -234,6 +240,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "Angriff",
                     ["Gold"] = "Gold",
                     ["Ember"] = "Glut",
+                    ["DragonsHoard"] = "Drachenhort",
                     ["Healed"] = "{0} erhält {1} Lebenspunkte",
                     ["HealedBy"] = "{0} erhält {1} Lebenspunkte durch {2}",
                     ["GainsAttack"] = "{0} erhält {1} Angriff",
@@ -253,6 +260,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "ataque",
                     ["Gold"] = "ouro",
                     ["Ember"] = "brasa",
+                    ["DragonsHoard"] = "Tesouro do Dragão",
                     ["Healed"] = "{0} recupera {1} de vida",
                     ["HealedBy"] = "{0} recupera {1} de vida com {2}",
                     ["GainsAttack"] = "{0} ganha {1} de ataque",
@@ -272,6 +280,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "атака",
                     ["Gold"] = "золото",
                     ["Ember"] = "уголёк",
+                    ["DragonsHoard"] = "Драконья сокровищница",
                     ["Healed"] = "{0} восстанавливает {1} здоровья",
                     ["HealedBy"] = "{0} восстанавливает {1} здоровья от {2}",
                     ["GainsAttack"] = "{0} получает {1} атаки",
@@ -291,6 +300,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "攻击",
                     ["Gold"] = "金币",
                     ["Ember"] = "余烬",
+                    ["DragonsHoard"] = "龙之宝藏",
                     ["Healed"] = "{0}恢复{1}点生命",
                     ["HealedBy"] = "{0}因{2}恢复{1}点生命",
                     ["GainsAttack"] = "{0}获得{1}点攻击",
@@ -310,6 +320,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "攻撃",
                     ["Gold"] = "ゴールド",
                     ["Ember"] = "エンバー",
+                    ["DragonsHoard"] = "ドラゴンの宝物庫",
                     ["Healed"] = "{0}は{1}回復した",
                     ["HealedBy"] = "{0}は{2}で{1}回復した",
                     ["GainsAttack"] = "{0}は攻撃力{1}を獲得",
@@ -329,6 +340,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["Attack"] = "공격",
                     ["Gold"] = "골드",
                     ["Ember"] = "엠버",
+                    ["DragonsHoard"] = "용의 보물",
                     ["Healed"] = "{0}이(가) 체력 {1} 회복",
                     ["HealedBy"] = "{0}이(가) {2}로 체력 {1} 회복",
                     ["GainsAttack"] = "{0}이(가) 공격력 {1} 획득",

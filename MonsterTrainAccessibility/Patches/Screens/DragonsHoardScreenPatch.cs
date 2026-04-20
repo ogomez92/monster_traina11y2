@@ -49,11 +49,13 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 MonsterTrainAccessibility.LogInfo("Dragon's Hoard screen entered");
                 ScreenStateTracker.SetScreen(Help.GameScreen.DragonsHoard);
 
-                // Try to get gold count
-                int gold = GetHoardGold(__instance);
-                string goldText = gold > 0 ? $" {gold} gold stored." : "";
+                var (amount, cap) = GetHoardCounts(__instance);
+                string hoardName = Utilities.ModLocalization.DragonsHoard;
+                string countText = cap > 0
+                    ? $" {amount}/{cap} {hoardName} stored."
+                    : amount > 0 ? $" {amount} {hoardName} stored." : "";
 
-                MonsterTrainAccessibility.ScreenReader?.Speak($"Dragon's Hoard.{goldText} Use arrow keys to browse options. Press F1 for help.");
+                MonsterTrainAccessibility.ScreenReader?.Speak($"{hoardName}.{countText} Use arrow keys to browse options. Press F1 for help.");
             }
             catch (Exception ex)
             {
@@ -61,30 +63,38 @@ namespace MonsterTrainAccessibility.Patches.Screens
             }
         }
 
-        private static int GetHoardGold(object screen)
+        private static (int amount, int cap) GetHoardCounts(object screen)
         {
+            object saveManager = null;
             try
             {
-                if (screen == null) return 0;
-                var screenType = screen.GetType();
-
-                // Look for gold/hoard value
-                var fields = screenType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                foreach (var field in fields)
+                if (screen != null)
                 {
-                    string fieldName = field.Name.ToLower();
-                    if (fieldName.Contains("gold") || fieldName.Contains("hoard") || fieldName.Contains("value"))
-                    {
-                        var value = field.GetValue(screen);
-                        if (value is int g)
-                        {
-                            return g;
-                        }
-                    }
+                    var field = screen.GetType().GetField("saveManager",
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    saveManager = field?.GetValue(screen);
                 }
             }
             catch { }
-            return 0;
+
+            if (saveManager == null)
+            {
+                saveManager = Utilities.ReflectionHelper.FindManager("SaveManager");
+            }
+
+            if (saveManager == null) return (0, 0);
+
+            int amount = 0, cap = 0;
+            try
+            {
+                var t = saveManager.GetType();
+                var getAmt = t.GetMethod("GetDragonsHoardAmount", Type.EmptyTypes);
+                var getCap = t.GetMethod("GetDragonsHoardCap", Type.EmptyTypes);
+                if (getAmt?.Invoke(saveManager, null) is int a) amount = a;
+                if (getCap?.Invoke(saveManager, null) is int c) cap = c;
+            }
+            catch { }
+            return (amount, cap);
         }
     }
 }

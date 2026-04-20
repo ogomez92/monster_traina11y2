@@ -28,6 +28,8 @@ namespace MonsterTrainAccessibility.Battle
         public MethodInfo GetMaxTowerHPMethod { get; private set; }
         public MethodInfo GetEnergyMethod { get; private set; }
         public MethodInfo GetGoldMethod { get; private set; }
+        public MethodInfo GetDragonsHoardAmountMethod { get; private set; }
+        public MethodInfo GetDragonsHoardCapMethod { get; private set; }
 
         // Cached reflection info - Room methods
         public MethodInfo GetRoomMethod { get; private set; }
@@ -115,6 +117,8 @@ namespace MonsterTrainAccessibility.Battle
                     GetTowerHPMethod = saveManagerType.GetMethod("GetTowerHP", Type.EmptyTypes);
                     GetMaxTowerHPMethod = saveManagerType.GetMethod("GetMaxTowerHP", Type.EmptyTypes);
                     GetGoldMethod = saveManagerType.GetMethod("GetGold", Type.EmptyTypes);
+                    GetDragonsHoardAmountMethod = saveManagerType.GetMethod("GetDragonsHoardAmount", Type.EmptyTypes);
+                    GetDragonsHoardCapMethod = saveManagerType.GetMethod("GetDragonsHoardCap", Type.EmptyTypes);
                 }
 
                 if (PlayerManager != null)

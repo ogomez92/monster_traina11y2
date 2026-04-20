@@ -186,7 +186,12 @@ namespace MonsterTrainAccessibility.Patches.Combat
                     {
                         result = Utilities.TextUtilities.StripRichTextTags(result);
                         result = Utilities.TextUtilities.CleanSpriteTagsForSpeech(result);
-                        return result.Trim();
+                        // Strip leaked localization tokens like KEY>>StatusEffect_Xyz_CardText<<
+                        // that the game emits when a specific status has no UI-ready name.
+                        result = System.Text.RegularExpressions.Regex.Replace(result, @"KEY>>.*?<<", "").Trim();
+                        result = result.TrimEnd(';', ' ');
+                        if (!string.IsNullOrEmpty(result))
+                            return result;
                     }
                 }
             }

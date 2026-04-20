@@ -548,17 +548,9 @@ namespace MonsterTrainAccessibility.Battle
                     }
                 }
 
-                // Check attack damage to infer basic intent
-                // Use direct reflection here to avoid needing cache parameter
-                var getAttackMethod = type.GetMethod("GetAttackDamage", Type.EmptyTypes);
-                if (getAttackMethod != null)
-                {
-                    var result = getAttackMethod.Invoke(characterState, null);
-                    if (result is int attack && attack > 0)
-                    {
-                        return $"Will attack for {attack} damage";
-                    }
-                }
+                // No boss state or action info available. Skip the "Will attack for {X} damage"
+                // fallback: X always equals the attack stat we already announced, so it adds
+                // nothing and clutters multi-unit floor listings.
             }
             catch (Exception ex)
             {

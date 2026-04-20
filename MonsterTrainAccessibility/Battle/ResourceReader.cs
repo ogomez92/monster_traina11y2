@@ -62,6 +62,13 @@ namespace MonsterTrainAccessibility.Battle
                     sb.Append($"{hand}: {handCards.Count}.");
                 }
 
+                int hoard = GetDragonsHoard();
+                int hoardCap = GetDragonsHoardCap();
+                if (hoardCap > 0)
+                {
+                    sb.Append($" {Utilities.ModLocalization.DragonsHoard}: {hoard}/{hoardCap}.");
+                }
+
                 MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
             }
             catch (Exception ex)
@@ -154,6 +161,38 @@ namespace MonsterTrainAccessibility.Battle
             }
             catch { }
             return -1;
+        }
+
+        public int GetDragonsHoard()
+        {
+            if (_cache.SaveManager == null || _cache.GetDragonsHoardAmountMethod == null)
+            {
+                _cache.FindManagers();
+            }
+
+            try
+            {
+                var result = _cache.GetDragonsHoardAmountMethod?.Invoke(_cache.SaveManager, null);
+                if (result is int amount) return amount;
+            }
+            catch { }
+            return 0;
+        }
+
+        public int GetDragonsHoardCap()
+        {
+            if (_cache.SaveManager == null || _cache.GetDragonsHoardCapMethod == null)
+            {
+                _cache.FindManagers();
+            }
+
+            try
+            {
+                var result = _cache.GetDragonsHoardCapMethod?.Invoke(_cache.SaveManager, null);
+                if (result is int cap) return cap;
+            }
+            catch { }
+            return 0;
         }
     }
 }

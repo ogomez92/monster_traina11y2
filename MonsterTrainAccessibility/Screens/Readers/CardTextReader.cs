@@ -388,20 +388,17 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 }
                 sb.Append(name);
 
-                // Build the type info: "Rare Hellhorned Unit" or "Common Spell"
+                // Build the type info: "Rare Hellhorned Imp Unit" or "Common Spell"
+                // Subtype is folded into the phrase so the announcement reads naturally
+                // ("Uncommon Hymnist Unit" instead of "Uncommon Unit, Hymnist").
                 var typeInfoParts = new List<string>();
                 if (!string.IsNullOrEmpty(rarity)) typeInfoParts.Add(rarity);
                 if (!string.IsNullOrEmpty(clanName)) typeInfoParts.Add(clanName);
+                if (!string.IsNullOrEmpty(unitSubtype)) typeInfoParts.Add(unitSubtype);
                 if (!string.IsNullOrEmpty(cardType)) typeInfoParts.Add(cardType);
                 if (typeInfoParts.Count > 0)
                 {
                     sb.Append($", {string.Join(" ", typeInfoParts)}");
-                }
-
-                // Unit subtype (e.g. "Imp", "Demon")
-                if (!string.IsNullOrEmpty(unitSubtype))
-                {
-                    sb.Append($", {unitSubtype}");
                 }
 
                 // Card size for units

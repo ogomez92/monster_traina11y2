@@ -156,6 +156,16 @@ namespace MonsterTrainAccessibility.Battle
                 }
             }
 
+            if (UnitInfoHelper.IsEnemyUnit(unit, _cache))
+            {
+                string intent = UnitInfoHelper.GetUnitIntent(unit);
+                if (!string.IsNullOrEmpty(intent))
+                {
+                    sb.Append(". Intent: ");
+                    sb.Append(intent);
+                }
+            }
+
             return sb.ToString();
         }
 
