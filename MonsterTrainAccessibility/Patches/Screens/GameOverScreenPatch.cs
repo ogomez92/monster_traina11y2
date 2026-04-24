@@ -3,17 +3,17 @@ using MonsterTrainAccessibility.Help;
 using MonsterTrainAccessibility.Utilities;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 
 namespace MonsterTrainAccessibility.Patches.Screens
 {
     /// <summary>
-    /// Announce the defeat / victory screen. Hooks GameOverScreen.Initialize (private,
-    /// invoked when the screen opens) and reads the populated labels, clan XP bars, and
-    /// progression objectives via reflection. Title / score / score-breakdown / battles /
-    /// primary+allied clan levels / "NEW PERSONAL RECORD" quests / active-clan quests
-    /// all get announced sequentially.
+    /// Announces the defeat / victory screen. Patches GameOverScreen.Initialize, calls
+    /// the screen's private FastForward() so the UI settles to final values immediately,
+    /// then reads title, score, bonus, battles, clan XP, personal-record accolades,
+    /// and progression objectives.
     /// </summary>
     public static class GameOverScreenPatch
     {
@@ -54,17 +54,16 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 bool isVictory = IsVictory(__instance);
                 ScreenStateTracker.SetScreen(isVictory ? Help.GameScreen.Victory : Help.GameScreen.Defeat);
 
-                // Initialize fires before the tweened labels settle to their final value
-                // (score animates 0 → final, XP bars animate, etc.). A short delay lets
-                // us read the real numbers — but we start by announcing the title+buttons
-                // immediately so the screen never feels silent.
                 string immediate = BuildImmediateAnnouncement(__instance, isVictory);
                 if (!string.IsNullOrEmpty(immediate))
                     MonsterTrainAccessibility.ScreenReader?.Speak(immediate, false);
 
-                MonsterTrainAccessibility.Instance?.StartCoroutine(DeferredReadCoroutine(__instance));
+                // Skip the game's in/out score/XP tweens so labels settle instantly.
+                // Accessibility users don't need the visual drama; sighted users who
+                // happened to enable this mod accept that tradeoff.
+                InvokeFastForward(__instance);
 
-                MonsterTrainAccessibility.MenuHandler?.OnGameOverScreenEntered(__instance);
+                MonsterTrainAccessibility.Instance?.StartCoroutine(DeferredReadCoroutine(__instance));
             }
             catch (Exception ex)
             {
@@ -75,7 +74,9 @@ namespace MonsterTrainAccessibility.Patches.Screens
 
         private static IEnumerator DeferredReadCoroutine(object screen)
         {
-            yield return new UnityEngine.WaitForSeconds(2.5f);
+            // ManualCoroutine steps one yield per frame even with skipCoroutine; a
+            // couple seconds is enough for progressionObjectiveUIs to populate.
+            yield return new UnityEngine.WaitForSeconds(2.0f);
             try
             {
                 string full = BuildFullAnnouncement(screen);
@@ -86,6 +87,16 @@ namespace MonsterTrainAccessibility.Patches.Screens
             {
                 MonsterTrainAccessibility.LogError($"Error in deferred game over read: {ex.Message}");
             }
+        }
+
+        private static void InvokeFastForward(object screen)
+        {
+            try
+            {
+                var m = screen?.GetType().GetMethod("FastForward", InstanceFields);
+                m?.Invoke(screen, null);
+            }
+            catch { }
         }
 
         private static bool IsVictory(object screen)
@@ -111,39 +122,54 @@ namespace MonsterTrainAccessibility.Patches.Screens
             if (screen == null) return null;
             var sb = new StringBuilder();
 
-            // Score (standard run) or endless battles (endless run)
-            string scoreText = GetLabelText(screen, "finalScoreStatLabel");
-            if (!string.IsNullOrEmpty(scoreText))
-                sb.Append($"Score {scoreText}. ");
+            // Score: prefer the authoritative int field over the animated label.
+            int? finalScore = GetIntField(screen, "finalScore");
+            if (finalScore.HasValue)
+            {
+                sb.Append($"Score {finalScore.Value:N0}. ");
+            }
+            else
+            {
+                string scoreText = GetLabelText(screen, "finalScoreStatLabel");
+                if (!string.IsNullOrEmpty(scoreText)) sb.Append($"Score {scoreText}. ");
+            }
 
             string endlessText = GetLabelText(screen, "battleScoresEndlessLabel");
             if (!string.IsNullOrEmpty(endlessText))
-                sb.Append($"{endlessText}. ");
+                sb.Append($"Endless battles {endlessText}. ");
 
-            // Bonus gold
             string bonus = ReadGoldBonus(screen);
             if (!string.IsNullOrEmpty(bonus))
                 sb.Append($"Bonus: {bonus}. ");
 
-            // Battles summary
             string battles = ReadBattlesSummary(screen);
             if (!string.IsNullOrEmpty(battles))
                 sb.Append($"{battles}. ");
 
-            // Primary + allied clan XP
             string mainClan = ReadClanInfo(screen, "mainClassInfo", "Primary clan");
-            if (!string.IsNullOrEmpty(mainClan))
-                sb.Append($"{mainClan}. ");
+            if (!string.IsNullOrEmpty(mainClan)) sb.Append(mainClan);
             string subClan = ReadClanInfo(screen, "subClassInfo", "Allied clan");
-            if (!string.IsNullOrEmpty(subClan))
-                sb.Append($"{subClan}. ");
+            if (!string.IsNullOrEmpty(subClan)) sb.Append(subClan);
 
-            // Personal records / progression objectives
+            string highlights = ReadStatHighlights(screen);
+            if (!string.IsNullOrEmpty(highlights)) sb.Append(highlights);
+
             string records = ReadProgressionObjectives(screen);
-            if (!string.IsNullOrEmpty(records))
-                sb.Append(records);
+            if (!string.IsNullOrEmpty(records)) sb.Append(records);
 
             return TextUtilities.StripRichTextTags(sb.ToString()).Trim();
+        }
+
+        private static int? GetIntField(object obj, string fieldName)
+        {
+            try
+            {
+                var f = obj?.GetType().GetField(fieldName, InstanceFields);
+                var v = f?.GetValue(obj);
+                if (v is int i) return i;
+            }
+            catch { }
+            return null;
         }
 
         private static string GetLabelText(object container, string fieldName)
@@ -171,20 +197,10 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 var goldUI = field?.GetValue(screen);
                 if (goldUI == null) return null;
 
-                // Look for any TMP child field on GoldScoreModifierDisplay. Amount is
-                // usually in a field named "amountLabel", "goldLabel", or similar.
-                foreach (var f in goldUI.GetType().GetFields(InstanceFields))
-                {
-                    var val = f.GetValue(goldUI);
-                    if (val == null) continue;
-                    var textProp = val.GetType().GetProperty("text");
-                    if (textProp == null) continue;
-                    var text = textProp.GetValue(val) as string;
-                    if (string.IsNullOrEmpty(text)) continue;
-                    text = TextUtilities.StripRichTextTags(text)?.Trim();
-                    if (!string.IsNullOrEmpty(text))
-                        return $"{text} {ModLocalization.Gold}";
-                }
+                // goldLabel is declared on GoldScoreModifierDisplay; target it explicitly.
+                string gold = GetLabelText(goldUI, "goldLabel");
+                if (!string.IsNullOrEmpty(gold))
+                    return $"{gold} {ModLocalization.Gold}";
             }
             catch { }
             return null;
@@ -225,18 +241,66 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 if (clanInfo == null) return null;
 
                 string clanName = GetLabelText(clanInfo, "classNameLabel");
+                if (string.IsNullOrEmpty(clanName)) return null;
 
-                // Clan level lives on classLevelMeterUI.levelLabel
                 string level = null;
+                string xp = null;
                 var meterField = clanInfo.GetType().GetField("classLevelMeterUI", InstanceFields);
                 var meter = meterField?.GetValue(clanInfo);
                 if (meter != null)
+                {
                     level = GetLabelText(meter, "levelLabel");
+                    var xpMeterField = meter.GetType().GetField("xpMeter", InstanceFields);
+                    var xpMeter = xpMeterField?.GetValue(meter);
+                    if (xpMeter != null)
+                        xp = GetLabelText(xpMeter, "countLabel");
+                }
 
-                if (string.IsNullOrEmpty(clanName)) return null;
+                var sb = new StringBuilder();
+                sb.Append($"{roleLabel} {clanName}");
                 if (!string.IsNullOrEmpty(level) && level != "-")
-                    return $"{roleLabel} {clanName}, level {level}";
-                return $"{roleLabel} {clanName}";
+                    sb.Append($", level {level}");
+                if (!string.IsNullOrEmpty(xp))
+                    sb.Append($", {xp} XP");
+                sb.Append(". ");
+                return sb.ToString();
+            }
+            catch { }
+            return null;
+        }
+
+        private static string ReadStatHighlights(object screen)
+        {
+            try
+            {
+                var field = screen.GetType().GetField("statHighlightUIs", InstanceFields);
+                var list = field?.GetValue(screen) as IList;
+                if (list == null || list.Count == 0) return null;
+
+                var parts = new List<string>();
+                foreach (var ui in list)
+                {
+                    if (ui == null) continue;
+                    var goProp = ui.GetType().GetProperty("gameObject");
+                    var go = goProp?.GetValue(ui) as UnityEngine.GameObject;
+                    if (go != null && !go.activeInHierarchy) continue;
+
+                    string header = GetLabelText(ui, "headerLabel");
+                    string body = GetLabelText(ui, "accoladeLabel");
+                    if (string.IsNullOrEmpty(header) && string.IsNullOrEmpty(body)) continue;
+
+                    var line = new StringBuilder();
+                    if (!string.IsNullOrEmpty(header)) line.Append(header);
+                    if (!string.IsNullOrEmpty(body))
+                    {
+                        if (line.Length > 0) line.Append(": ");
+                        line.Append(body.Replace('\n', ',').Replace("\r", string.Empty));
+                    }
+                    if (line.Length > 0) parts.Add(line.ToString());
+                }
+
+                if (parts.Count == 0) return null;
+                return "Highlights: " + string.Join(". ", parts) + ". ";
             }
             catch { }
             return null;
@@ -250,7 +314,7 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 var list = field?.GetValue(screen) as IList;
                 if (list == null || list.Count == 0) return null;
 
-                var parts = new System.Collections.Generic.List<string>();
+                var parts = new List<string>();
                 foreach (var entry in list)
                 {
                     if (entry == null) continue;
