@@ -1468,9 +1468,23 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     parts.Add(TextUtilities.StripRichTextTags(name));
                     parts.Add("Upgrade");
 
+                    string cleanedDesc = null;
                     if (!string.IsNullOrEmpty(description))
                     {
-                        parts.Add(TextUtilities.StripRichTextTags(description));
+                        cleanedDesc = TextUtilities.CleanSpriteTagsForSpeech(description);
+                        cleanedDesc = TextUtilities.StripRichTextTags(cleanedDesc);
+                        if (!string.IsNullOrEmpty(cleanedDesc))
+                            parts.Add(cleanedDesc);
+                    }
+
+                    // Pull keyword tooltips out of the upgrade description so the player
+                    // hears what e.g. "Multistrike" or "Regen" means on the stone.
+                    if (!string.IsNullOrEmpty(cleanedDesc))
+                    {
+                        var keywords = new List<string>();
+                        CardKeywordReader.ExtractKeywordsFromDescription(cleanedDesc, keywords);
+                        if (keywords.Count > 0)
+                            parts.Add($"Keywords: {string.Join(". ", keywords)}");
                     }
 
                     // Add helper instruction

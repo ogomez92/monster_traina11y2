@@ -1,7 +1,11 @@
 using HarmonyLib;
 using MonsterTrainAccessibility.Help;
+using MonsterTrainAccessibility.Utilities;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Text;
 
 namespace MonsterTrainAccessibility.Patches.Screens
 {
@@ -55,12 +59,63 @@ namespace MonsterTrainAccessibility.Patches.Screens
                     ? $" {amount}/{cap} {hoardName} stored."
                     : amount > 0 ? $" {amount} {hoardName} stored." : "";
 
-                MonsterTrainAccessibility.ScreenReader?.Speak($"{hoardName}.{countText} Use arrow keys to browse options. Press F1 for help.");
+                var rewardTitles = GetCurrentRewardTitles(__instance);
+                string rewardsText;
+                if (rewardTitles.Count > 0)
+                {
+                    rewardsText = $" Loot Level {amount} rewards: {string.Join(", ", rewardTitles)}.";
+                }
+                else if (amount <= 0)
+                {
+                    rewardsText = $" No {hoardName} stored. Earn {hoardName} to unlock rewards.";
+                }
+                else
+                {
+                    rewardsText = "";
+                }
+
+                string buttonHint = amount > 0
+                    ? " Confirm to collect, Loot Levels to preview tiers, Cancel to leave."
+                    : " Loot Levels to preview tiers, Cancel to leave.";
+
+                MonsterTrainAccessibility.ScreenReader?.Speak($"{hoardName}.{countText}{rewardsText}{buttonHint} Press F1 for help.");
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"Error in DragonsHoardScreen patch: {ex.Message}");
             }
+        }
+
+        private static List<string> GetCurrentRewardTitles(object screen)
+        {
+            var titles = new List<string>();
+            if (screen == null) return titles;
+            try
+            {
+                var field = screen.GetType().GetField("_dragonsHoardRewardStates",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (!(field?.GetValue(screen) is IEnumerable rewardStates)) return titles;
+
+                foreach (var rs in rewardStates)
+                {
+                    if (rs == null) continue;
+                    var rdProp = rs.GetType().GetProperty("RewardData",
+                        BindingFlags.Public | BindingFlags.Instance);
+                    var rd = rdProp?.GetValue(rs);
+                    if (rd == null) continue;
+                    var titleProp = rd.GetType().GetProperty("RewardTitle",
+                        BindingFlags.Public | BindingFlags.Instance);
+                    var title = titleProp?.GetValue(rd) as string;
+                    if (string.IsNullOrEmpty(title)) continue;
+                    title = TextUtilities.CleanSpriteTagsForSpeech(title);
+                    if (!string.IsNullOrEmpty(title)) titles.Add(title);
+                }
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetCurrentRewardTitles error: {ex.Message}");
+            }
+            return titles;
         }
 
         private static (int amount, int cap) GetHoardCounts(object screen)

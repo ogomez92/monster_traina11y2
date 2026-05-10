@@ -66,9 +66,9 @@ Screen Handler → Text Reader (extracts data via reflection)
 | `Screens/` | Screen coordinators (MenuAccessibility, BattleAccessibility) |
 | `Screens/Readers/` | Text extraction per screen type (static classes, pure functions) |
 | `Patches/Screens/` | One Harmony patch per game screen transition (44 patches) |
-| `Patches/Combat/` | One Harmony patch per combat event type (42 patches) |
+| `Patches/Combat/` | One Harmony patch per combat event type (43 patches) |
 | `Patches/` | Card event patches (draw/play/discard/exhaust/shuffle/freeze), card targeting, character state helper |
-| `Help/Contexts/` | One help context per screen (25 contexts, priority-based) |
+| `Help/Contexts/` | One help context per screen (27 contexts, priority-based) |
 | `Utilities/` | Shared helpers: text processing, localization, UI visibility, reflection |
 
 ### Critical Rules
@@ -98,7 +98,7 @@ Screen Handler → Text Reader (extracts data via reflection)
 
 ### Combat Event Coverage
 
-**Patched (42 combat patches + 7 card event patches):**
+**Patched (43 combat patches + 7 card event patches):**
 
 | Category | Patches |
 |----------|---------|
@@ -139,6 +139,10 @@ Screen Handler → Text Reader (extracts data via reflection)
 
 **Card traits** (71 trait classes in game): Only 19 have hardcoded localization keys in KeywordManager. Runtime discovery handles the rest via trait class name → localization key mapping. Missing from fallback: Juice, Ephemeral, CorruptState, Infusion, MagneticState, Heavy, GraftedEquipment, DamageOverflow, SpellAffinity, Treasure, and ~40 scaling/specialized traits.
 
+**Keyword name disambiguation**: Some game tooltips localize to ambiguous bare words. `KeywordManager` rewrites these post-localization (see `CardEffectSetMoonPhase`/`CardEffectAdvanceMoonPhase` → "Moon Phase" instead of "Phase", which would otherwise collide with "Deployment Phase"/"Combat Phase" in `CardKeywordReader.ExtractKeywordsFromDescription`'s word-boundary match). Add similar overrides for any new collisions there.
+
+**Story event keyword expansion**: `EventTextReader` runs `CardKeywordReader.ExtractKeywordsFromDescription` on the choice text and appends a `Keywords: …` block, because event reward text references keywords (Strike, Corruption, Morsel) without the inline tooltips cards get.
+
 ### Card Text Reader Helpers
 
 `CardTextReader` provides reusable static helpers for extracting card metadata via reflection:
@@ -149,6 +153,7 @@ Screen Handler → Text Reader (extracts data via reflection)
 - `GetUnitStats(cardState, type)` - `GetTotalAttackDamage()` (int) + `GetHealth()` (float)
 - `GetUnitAbilityDescription(cardState, type)` - via `CharacterData.GetUnitAbilityCardData()` → `GetCardText()` for ability effect text
 - `IsCardUpgraded(cardState, type)` - checks `cardModifiers.GetCardUpgrades().Count > 0`
+- `IsXCostCard(obj, objType)` - calls `IsConsumeRemainingEnergyCostType()` (works on both `CardState` and `CardData`); cost text becomes "X ember"
 - `FormatCardDetails(cardState)` - full card announcement: "[Upgraded] Name, Rarity Clan Type, subtype, size, cost. Description. Stats. Ability description. Keywords."
 
 ### Utilities
@@ -256,6 +261,7 @@ Map nodes use two different component systems:
 - **`MinimapNodeMarker`** (minimap): Has `mapNodeData` field. The `tooltipProvider` only receives the body (title is null); read `mapNodeData.GetTooltipTitle()` for the title, or the `label` TMP_Text field.
 - **`MapBattleNodeUI`**: Has `defaultTooltipTitle` localization key (e.g. "ScreenMap_Battle_TooltipTitle").
 - Branch choices: `BranchChoiceUI/Left button` and `BranchChoiceUI/Right button` under `MapSection_XX`. Scan sibling `MapNodeUI` nodes named "Left node N", "Right node N", "Shared node N" to list all stops on each branch.
+- F6 (read-all) on the map calls `MapTextReader.GetMapOverview()` instead of dumping every TMP label. Walks `MapScreen.sections` (private list) reading each section's `leftMapNodes`/`rightMapNodes`/`sharedMapNodes`, and announces ring N of M plus up to 4 upcoming rings. Reads `CurrentSection`/`CurrentBranch` props for "on left/right branch" hint.
 
 ### Shop Item Structure
 

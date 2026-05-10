@@ -1184,6 +1184,18 @@ namespace MonsterTrainAccessibility.Screens
         {
             try
             {
+                // On the map screen, F6 gives a structured overview of rings/branches
+                // rather than a flat dump of every TMP label on the scene.
+                if (Help.ScreenStateTracker.CurrentScreen == Help.GameScreen.Map)
+                {
+                    string overview = Screens.Readers.MapTextReader.GetMapOverview();
+                    if (!string.IsNullOrEmpty(overview))
+                    {
+                        MonsterTrainAccessibility.ScreenReader?.Speak(overview, false);
+                        return;
+                    }
+                }
+
                 var collectedTexts = new HashSet<string>();
                 var sb = new StringBuilder();
 

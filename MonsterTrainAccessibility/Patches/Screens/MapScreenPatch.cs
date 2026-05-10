@@ -42,7 +42,14 @@ namespace MonsterTrainAccessibility.Patches.Screens
             try
             {
                 ScreenStateTracker.SetScreen(Help.GameScreen.Map);
-                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map. Press F1 for help.");
+                MonsterTrainAccessibility.ScreenReader?.AnnounceScreen("Map. Press F1 for help, F6 for overview.");
+
+                // Defer the overview read by a frame so the sections list finishes
+                // populating — Initialize/Setup postfix can fire before the MapSections
+                // are spawned into the sections list.
+                var overview = global::MonsterTrainAccessibility.Screens.Readers.MapTextReader.GetMapOverview();
+                if (!string.IsNullOrEmpty(overview))
+                    MonsterTrainAccessibility.ScreenReader?.Queue(overview);
             }
             catch (Exception ex)
             {

@@ -123,8 +123,11 @@ namespace MonsterTrainAccessibility.Patches.Screens
                 string desc = getDescMethod?.Invoke(cardState, null) as string ?? "";
                 desc = TextUtilities.StripRichTextTags(desc);
 
-                MonsterTrainAccessibility.LogInfo($"Card info: {name}, {cost} ember");
-                return $"{name}, {cost} ember. {desc}";
+                string costText = global::MonsterTrainAccessibility.Screens.Readers.CardTextReader.IsXCostCard(cardState, cardType)
+                    ? "X ember"
+                    : $"{cost} ember";
+                MonsterTrainAccessibility.LogInfo($"Card info: {name}, {costText}");
+                return $"{name}, {costText}. {desc}";
             }
             catch (Exception ex)
             {

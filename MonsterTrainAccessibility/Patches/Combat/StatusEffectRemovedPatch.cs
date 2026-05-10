@@ -46,6 +46,10 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 if (string.IsNullOrEmpty(__0) || __1 <= 0)
                     return;
 
+                // Moon phase is global state — announced by MoonPhasePatch + ResourceReader.
+                if (__0 == "fullmoon" || __0 == "newmoon")
+                    return;
+
                 if (PreviewModeDetector.ShouldSuppressAnnouncement(__instance))
                     return;
 

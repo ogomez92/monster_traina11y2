@@ -64,6 +64,24 @@ namespace MonsterTrainAccessibility.Patches.Combat
                         return;
                 }
 
+                // Skip heal announcement when unit is already at full HP.
+                // Heal spells (e.g. Witchwave) trigger ApplyHeal on every unit on the
+                // floor regardless of damage state; announcing "healed 0" on full-HP
+                // units is noise. Rejuvenate trigger still fires at full HP inside the
+                // game — but the user-visible heal amount is zero, so nothing to say.
+                try
+                {
+                    var getHp = charType.GetMethod("GetHP", Type.EmptyTypes);
+                    var getMaxHp = charType.GetMethod("GetMaxHP", Type.EmptyTypes);
+                    if (getHp != null && getMaxHp != null)
+                    {
+                        int hp = (int)getHp.Invoke(__instance, null);
+                        int maxHp = (int)getMaxHp.Invoke(__instance, null);
+                        if (hp >= maxHp) return;
+                    }
+                }
+                catch { }
+
                 string targetName = CharacterStateHelper.GetUnitName(__instance);
                 string sourceName = GetHealSourceName(__2, __3);
 

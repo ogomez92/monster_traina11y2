@@ -66,6 +66,8 @@ namespace MonsterTrainAccessibility.Patches.Combat
                         break;
                 }
 
+                // Skip empty boss-action phases (companion boss with no queued action) so
+                // we don't spam "Boss action" with no description.
                 if (announcement != null)
                 {
                     MonsterTrainAccessibility.BattleHandler?.OnCombatPhaseChanged(announcement);
@@ -79,64 +81,90 @@ namespace MonsterTrainAccessibility.Patches.Combat
 
         /// <summary>
         /// Look up the boss's next queued action via reflection and build an
-        /// announcement like "Boss action. {description}. Targeting {floor}."
-        /// Falls back to plain "Boss action" if lookup fails.
+        /// announcement like "{Boss} action: {description}. Targeting {floor}."
+        /// Tries the outer-train boss first, then any companion boss. Returns null when
+        /// no queued action exists (caller should skip the announcement).
         /// </summary>
         private static string BuildBossActionAnnouncement()
         {
-            const string fallback = "Boss action";
             try
             {
                 var agmType = AccessTools.TypeByName("AllGameManagers");
                 var instance = agmType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
                 var heroManager = agmType?.GetMethod("GetHeroManager", Type.EmptyTypes)?.Invoke(instance, null);
-                if (heroManager == null) return fallback;
+                if (heroManager == null) return null;
 
-                var bossChar = heroManager.GetType()
-                    .GetMethod("GetOuterTrainBossCharacter", Type.EmptyTypes)?.Invoke(heroManager, null);
-                if (bossChar == null) return fallback;
+                var hmType = heroManager.GetType();
+                object bossChar = hmType.GetMethod("GetOuterTrainBossCharacter", Type.EmptyTypes)?.Invoke(heroManager, null);
+                string built = TryBuildFromBoss(bossChar);
+                if (built != null) return built;
 
-                var bossState = bossChar.GetType()
-                    .GetMethod("GetBossState", Type.EmptyTypes)?.Invoke(bossChar, null);
-                if (bossState == null) return fallback;
-
-                var nextAction = bossState.GetType()
-                    .GetMethod("GetNextBossAction", Type.EmptyTypes)?.Invoke(bossState, null);
-                if (nextAction == null) return fallback;
-
-                var actionType = nextAction.GetType();
-                bool isEmpty = (bool)(actionType.GetMethod("IsEmptyAction", Type.EmptyTypes)?.Invoke(nextAction, null) ?? false);
-                if (isEmpty) return fallback;
-
-                string description = actionType.GetMethod("GetTooltipDescription", Type.EmptyTypes)
-                    ?.Invoke(nextAction, null) as string;
-                description = TextUtilities.CleanSpriteTagsForSpeech(description);
-                description = TextUtilities.StripRichTextTags(description)?.Trim();
-
-                int targetRoomIndex = -1;
-                var getRoomIdx = actionType.GetMethod("GetTargetedRoomIndex", Type.EmptyTypes);
-                if (getRoomIdx != null)
+                // Fallback: any live companion boss (regional bosses like Scions).
+                var findCompanion = hmType.GetMethod("FindCompanionBoss", new[] { typeof(bool) });
+                if (findCompanion != null)
                 {
-                    var result = getRoomIdx.Invoke(nextAction, null);
-                    if (result is int i) targetRoomIndex = i;
+                    bossChar = findCompanion.Invoke(heroManager, new object[] { true });
+                    built = TryBuildFromBoss(bossChar);
+                    if (built != null) return built;
                 }
 
-                var parts = new System.Collections.Generic.List<string> { fallback };
-                if (!string.IsNullOrEmpty(description))
-                    parts.Add(description);
-                if (targetRoomIndex >= 0 && targetRoomIndex <= 3)
-                {
-                    int userFloor = targetRoomIndex == 3 ? 0 : targetRoomIndex + 1;
-                    parts.Add($"targeting {Battle.FloorReader.GetFloorDisplayName(userFloor)}");
-                }
-
-                return string.Join(". ", parts);
+                return null;
             }
             catch (Exception ex)
             {
                 MonsterTrainAccessibility.LogError($"BuildBossActionAnnouncement failed: {ex.Message}");
-                return fallback;
+                return null;
             }
+        }
+
+        private static string TryBuildFromBoss(object bossChar)
+        {
+            if (bossChar == null) return null;
+
+            var charType = bossChar.GetType();
+
+            // CharacterState.GetNextBossAction() exists directly; use it (handles null bossState).
+            object nextAction = charType.GetMethod("GetNextBossAction", Type.EmptyTypes)?.Invoke(bossChar, null);
+            if (nextAction == null) return null;
+
+            var actionType = nextAction.GetType();
+            bool isEmpty = (bool)(actionType.GetMethod("IsEmptyAction", Type.EmptyTypes)?.Invoke(nextAction, null) ?? false);
+            if (isEmpty) return null;
+
+            string description = actionType.GetMethod("GetTooltipDescription", Type.EmptyTypes)
+                ?.Invoke(nextAction, null) as string;
+            description = TextUtilities.CleanSpriteTagsForSpeech(description);
+            description = TextUtilities.StripRichTextTags(description)?.Trim();
+
+            int targetRoomIndex = -1;
+            var getRoomIdx = actionType.GetMethod("GetTargetedRoomIndex", Type.EmptyTypes);
+            if (getRoomIdx != null)
+            {
+                var result = getRoomIdx.Invoke(nextAction, null);
+                if (result is int i) targetRoomIndex = i;
+            }
+
+            string bossName = null;
+            try
+            {
+                bossName = charType.GetMethod("GetName", Type.EmptyTypes)?.Invoke(bossChar, null) as string;
+            }
+            catch { }
+            if (string.IsNullOrEmpty(bossName)) bossName = "Boss";
+
+            var parts = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrEmpty(description))
+                parts.Add($"{bossName} action: {description}");
+            else
+                parts.Add($"{bossName} action");
+
+            if (targetRoomIndex >= 0 && targetRoomIndex <= 3)
+            {
+                int userFloor = targetRoomIndex == 3 ? 0 : targetRoomIndex + 1;
+                parts.Add($"targeting {Battle.FloorReader.GetFloorDisplayName(userFloor)}");
+            }
+
+            return string.Join(". ", parts);
         }
     }
 }

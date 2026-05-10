@@ -49,6 +49,17 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 string result = sb.ToString().Trim();
                 if (!string.IsNullOrEmpty(result))
                 {
+                    // Event choices ship reward descriptions that reference keywords
+                    // (Strike, Corruption, Morsel…) without the inline tooltip system
+                    // cards get. Append keyword definitions so blind players hear what
+                    // each reward actually does.
+                    var keywordList = new List<string>();
+                    CardKeywordReader.ExtractKeywordsFromDescription(result, keywordList);
+                    if (keywordList.Count > 0)
+                    {
+                        result += $". Keywords: {string.Join(". ", keywordList)}.";
+                    }
+
                     MonsterTrainAccessibility.LogInfo($"StoryChoiceItem text: {result}");
                     return result;
                 }

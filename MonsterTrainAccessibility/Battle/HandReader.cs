@@ -51,12 +51,16 @@ namespace MonsterTrainAccessibility.Battle
                     string description = GetCardDescription(card);
 
                     string ember = Utilities.ModLocalization.Ember;
-                    string playable = (currentEnergy >= 0 && cost > currentEnergy) ? " ✗" : "";
+                    bool isXCost = Screens.Readers.CardTextReader.IsXCostCard(card, card?.GetType());
+                    string costText = isXCost ? $"X {ember}" : $"{cost} {ember}";
+                    // X-cost cards are always playable (consume remaining energy),
+                    // so never flag them as unplayable based on raw cost.
+                    string playable = (!isXCost && currentEnergy >= 0 && cost > currentEnergy) ? " ✗" : "";
 
                     // Build card announcement based on verbosity
                     if (verbosity == VerbosityLevel.Minimal)
                     {
-                        sb.Append($"{i + 1}: {name}, {cost} {ember}{playable}. ");
+                        sb.Append($"{i + 1}: {name}, {costText}{playable}. ");
                     }
                     else
                     {
@@ -67,7 +71,7 @@ namespace MonsterTrainAccessibility.Battle
                         if (!string.IsNullOrEmpty(cardType)) typeInfoParts.Add(cardType);
                         string typeInfo = typeInfoParts.Count > 0 ? $", {string.Join(" ", typeInfoParts)}" : "";
 
-                        sb.Append($"{i + 1}: {name}{typeInfo}, {cost} {ember}{playable}. ");
+                        sb.Append($"{i + 1}: {name}{typeInfo}, {costText}{playable}. ");
 
                         if (!string.IsNullOrEmpty(description))
                         {

@@ -2131,5 +2131,147 @@ namespace MonsterTrainAccessibility.Screens.Readers
             return name;
         }
 
+        /// <summary>
+        /// Build a whole-map overview for the blind player: "Ring N of M. Upcoming:
+        /// Ring N+1 — left Merchant, right Battle, shared Event …". Walks MapScreen.sections
+        /// via reflection, reading each section's left/right/shared MapNodeUI lists and
+        /// pulling the localized tooltip titles. Returns null if no map screen is active.
+        /// </summary>
+        public static string GetMapOverview()
+        {
+            try
+            {
+                var mapScreenType = ReflectionHelper.GetTypeFromAssemblies("MapScreen");
+                if (mapScreenType == null) return null;
+
+                var mapScreen = UnityEngine.Object.FindObjectOfType(mapScreenType);
+                if (mapScreen == null) return null;
+
+                var sectionsField = mapScreenType.GetField("sections",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (sectionsField == null) return null;
+
+                var sections = sectionsField.GetValue(mapScreen) as System.Collections.IList;
+                if (sections == null || sections.Count == 0) return null;
+
+                int currentSection = GetCurrentSectionIndex(mapScreen, mapScreenType);
+                int currentBranch = GetCurrentBranchIndex(mapScreen, mapScreenType);
+
+                var sb = new StringBuilder();
+                sb.Append($"Map overview. Ring {Math.Max(1, currentSection + 1)} of {sections.Count}");
+
+                // Current-branch hint for sections the player has already picked a side on
+                if (currentSection > 0 && currentBranch != 0)
+                {
+                    sb.Append(currentBranch < 0 ? ", on left branch" : ", on right branch");
+                }
+                sb.Append('.');
+
+                // Upcoming rings — cap at ~4 to keep the announcement short enough to skim
+                int shown = 0;
+                for (int i = currentSection; i < sections.Count && shown < 4; i++)
+                {
+                    string ringText = DescribeSection(sections[i], i + 1);
+                    if (!string.IsNullOrEmpty(ringText))
+                    {
+                        sb.Append(' ');
+                        sb.Append(ringText);
+                        shown++;
+                    }
+                }
+
+                int remaining = sections.Count - currentSection - shown;
+                if (remaining > 0)
+                    sb.Append($" Plus {remaining} more ring{(remaining == 1 ? "" : "s")} ahead.");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"GetMapOverview error: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static int GetCurrentSectionIndex(object mapScreen, Type mapScreenType)
+        {
+            try
+            {
+                var prop = mapScreenType.GetProperty("CurrentSection",
+                    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                if (prop != null)
+                {
+                    var v = prop.GetValue(mapScreen);
+                    if (v is int i) return i;
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        private static int GetCurrentBranchIndex(object mapScreen, Type mapScreenType)
+        {
+            try
+            {
+                var prop = mapScreenType.GetProperty("CurrentBranch",
+                    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                if (prop != null)
+                {
+                    var v = prop.GetValue(mapScreen);
+                    if (v is int i) return i;
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        private static string DescribeSection(object section, int ringNumber)
+        {
+            if (section == null) return null;
+            try
+            {
+                var type = section.GetType();
+                var leftField = type.GetField("leftMapNodes", BindingFlags.NonPublic | BindingFlags.Instance);
+                var rightField = type.GetField("rightMapNodes", BindingFlags.NonPublic | BindingFlags.Instance);
+                var sharedField = type.GetField("sharedMapNodes", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                string left = SummarizeNodeList(leftField?.GetValue(section));
+                string right = SummarizeNodeList(rightField?.GetValue(section));
+                string shared = SummarizeNodeList(sharedField?.GetValue(section));
+
+                var parts = new List<string>();
+                if (!string.IsNullOrEmpty(left)) parts.Add($"left {left}");
+                if (!string.IsNullOrEmpty(right)) parts.Add($"right {right}");
+                if (!string.IsNullOrEmpty(shared)) parts.Add($"shared {shared}");
+
+                if (parts.Count == 0) return $"Ring {ringNumber}.";
+                return $"Ring {ringNumber}: {string.Join("; ", parts)}.";
+            }
+            catch { }
+            return null;
+        }
+
+        private static string SummarizeNodeList(object listObj)
+        {
+            if (!(listObj is System.Collections.IList list) || list.Count == 0)
+                return null;
+
+            var names = new List<string>();
+            foreach (var nodeUI in list)
+            {
+                if (nodeUI is Component nodeComp && nodeComp.gameObject != null && !nodeComp.gameObject.activeInHierarchy)
+                    continue;
+
+                string title = null;
+                if (nodeUI is Component c)
+                    title = GetMapNodeUITitle(c) ?? GetBattleNodeTitle(c);
+                if (!string.IsNullOrEmpty(title))
+                    names.Add(title);
+            }
+
+            if (names.Count == 0) return null;
+            return string.Join(", ", names);
+        }
+
     }
 }

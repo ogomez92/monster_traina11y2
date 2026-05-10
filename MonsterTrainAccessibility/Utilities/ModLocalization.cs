@@ -193,6 +193,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0} gains {1}",
                     ["LosesTrigger"] = "{0} loses {1}",
                     ["PyreHealed"] = "Pyre healed {0} health, {1} remaining",
+                    ["RewardsIntro"] = "Rewards available. Use arrow keys to browse, Enter to select. Press F1 for help.",
                 },
                 ["Spanish"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -213,6 +214,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0} gana {1}",
                     ["LosesTrigger"] = "{0} pierde {1}",
                     ["PyreHealed"] = "La pira recupera {0} de vida, quedan {1}",
+                    ["RewardsIntro"] = "Recompensas disponibles. Usa las flechas para navegar, Intro para seleccionar. Pulsa F1 para ayuda.",
                 },
                 ["French"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -233,6 +235,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0} gagne {1}",
                     ["LosesTrigger"] = "{0} perd {1}",
                     ["PyreHealed"] = "Le Bûcher récupère {0} PV, il en reste {1}",
+                    ["RewardsIntro"] = "Récompenses disponibles. Utilisez les flèches pour naviguer, Entrée pour sélectionner. Appuyez sur F1 pour l'aide.",
                 },
                 ["German"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -253,6 +256,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0} erhält {1}",
                     ["LosesTrigger"] = "{0} verliert {1}",
                     ["PyreHealed"] = "Scheiterhaufen heilt um {0}, verbleibend {1}",
+                    ["RewardsIntro"] = "Belohnungen verfügbar. Pfeiltasten zum Navigieren, Eingabe zum Auswählen. F1 für Hilfe.",
                 },
                 ["Portuguese (Brazil)"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -273,6 +277,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0} ganha {1}",
                     ["LosesTrigger"] = "{0} perde {1}",
                     ["PyreHealed"] = "A pira recupera {0} de vida, restam {1}",
+                    ["RewardsIntro"] = "Recompensas disponíveis. Use as setas para navegar, Enter para selecionar. Pressione F1 para ajuda.",
                 },
                 ["Russian"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -293,6 +298,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0} получает {1}",
                     ["LosesTrigger"] = "{0} теряет {1}",
                     ["PyreHealed"] = "Костёр восстанавливает {0} здоровья, осталось {1}",
+                    ["RewardsIntro"] = "Награды доступны. Стрелки — навигация, Enter — выбор. F1 — справка.",
                 },
                 ["Simplified Chinese"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -313,6 +319,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0}获得{1}",
                     ["LosesTrigger"] = "{0}失去{1}",
                     ["PyreHealed"] = "火葬堆恢复{0}点生命，剩余{1}",
+                    ["RewardsIntro"] = "可获得奖励。方向键浏览，回车选择。按F1查看帮助。",
                 },
                 ["Japanese"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -333,6 +340,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0}は{1}を獲得",
                     ["LosesTrigger"] = "{0}は{1}を失う",
                     ["PyreHealed"] = "パイアは{0}回復、残り{1}",
+                    ["RewardsIntro"] = "報酬が利用可能。矢印キーで移動、Enterで選択。F1でヘルプ。",
                 },
                 ["Korean"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -353,6 +361,7 @@ namespace MonsterTrainAccessibility.Utilities
                     ["GainsTrigger"] = "{0}이(가) {1} 획득",
                     ["LosesTrigger"] = "{0}이(가) {1} 상실",
                     ["PyreHealed"] = "파이어가 체력 {0} 회복, 남은 {1}",
+                    ["RewardsIntro"] = "보상이 있습니다. 화살표 키로 이동, Enter로 선택. F1로 도움말.",
                 },
             };
 

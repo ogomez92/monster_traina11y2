@@ -69,6 +69,12 @@ namespace MonsterTrainAccessibility.Battle
                     sb.Append($" {Utilities.ModLocalization.DragonsHoard}: {hoard}/{hoardCap}.");
                 }
 
+                string moonPhase = GetMoonPhaseName();
+                if (!string.IsNullOrEmpty(moonPhase))
+                {
+                    sb.Append($" {moonPhase}.");
+                }
+
                 MonsterTrainAccessibility.ScreenReader?.Speak(sb.ToString(), false);
             }
             catch (Exception ex)
@@ -193,6 +199,44 @@ namespace MonsterTrainAccessibility.Battle
             }
             catch { }
             return 0;
+        }
+
+        /// <summary>
+        /// Returns localized moon phase name (e.g. "Full Moon") if the current run uses
+        /// moon-phase mechanics, else null. PlayerManager.MoonPhase enum: New=1, Full=2, None=4.
+        /// </summary>
+        public string GetMoonPhaseName()
+        {
+            try
+            {
+                if (_cache.PlayerManager == null) _cache.FindManagers();
+                if (_cache.PlayerManager == null) return null;
+
+                var pmType = _cache.PlayerManager.GetType();
+                var hasMoonMethod = pmType.GetMethod("GetHasMoonPhaseCardEffect", Type.EmptyTypes);
+                if (hasMoonMethod != null)
+                {
+                    var hasMoon = hasMoonMethod.Invoke(_cache.PlayerManager, null);
+                    if (!(hasMoon is bool b) || !b) return null;
+                }
+                else
+                {
+                    return null;
+                }
+
+                var phaseProp = pmType.GetProperty("CurrentMoonPhase");
+                if (phaseProp == null) return null;
+                var phaseVal = phaseProp.GetValue(_cache.PlayerManager);
+                if (phaseVal == null) return null;
+
+                int phaseInt = Convert.ToInt32(phaseVal);
+                return Utilities.ModLocalization.MoonPhase(phaseInt);
+            }
+            catch (Exception ex)
+            {
+                MonsterTrainAccessibility.LogError($"Error reading moon phase: {ex.Message}");
+                return null;
+            }
         }
     }
 }

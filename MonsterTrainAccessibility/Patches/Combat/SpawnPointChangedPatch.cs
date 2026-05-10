@@ -58,6 +58,12 @@ namespace MonsterTrainAccessibility.Patches.Combat
                 var battle = MonsterTrainAccessibility.BattleHandler;
                 if (battle == null || !battle.IsInBattle) return;
 
+                // Card-play preview reassigns spawn points as if the unit were placed.
+                // Suppress announcements while SaveManager.PreviewMode is on or the
+                // specific CharacterState is flagged preview — the "real" spawn fires
+                // again when the card is actually played.
+                if (PreviewModeDetector.ShouldSuppressAnnouncement(__0)) return;
+
                 bool isFreshSpawn = __1 == null;
                 int newRoom = GetRoomIndex(__0);
                 int prevRoom = isFreshSpawn ? -1 : GetRoomFromSpawnPoint(__1);

@@ -269,6 +269,17 @@ namespace MonsterTrainAccessibility.Core
                         name = TextUtilities.CleanSpriteTagsForSpeech(name).Trim();
                         if (string.IsNullOrEmpty(name)) continue;
 
+                        // Moon-phase tooltip localizes to the bare word "Phase", which
+                        // collides with "Deployment Phase"/"Combat Phase" in other text.
+                        // Disambiguate to "Moon Phase" so word-boundary matching in
+                        // CardKeywordReader.ExtractKeywordsFromDescription doesn't fire
+                        // on non-moon phase references.
+                        if (typeName == "CardEffectSetMoonPhase" || typeName == "CardEffectAdvanceMoonPhase")
+                        {
+                            if (name.Equals("Phase", StringComparison.OrdinalIgnoreCase))
+                                name = "Moon Phase";
+                        }
+
                         string value;
                         if (!string.IsNullOrEmpty(tooltip) && tooltip != textKey)
                         {

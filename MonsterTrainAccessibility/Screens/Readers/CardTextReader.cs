@@ -251,7 +251,12 @@ namespace MonsterTrainAccessibility.Screens.Readers
                         sb.Append($", {string.Join(" ", typeInfoParts)}");
                     }
 
-                    if (cost >= 0)
+                    bool isXCost = IsXCostCard(cardObj, dataType);
+                    if (isXCost)
+                    {
+                        sb.Append(", X ember");
+                    }
+                    else if (cost >= 0)
                     {
                         sb.Append($", {cost} ember");
                     }
@@ -407,7 +412,16 @@ namespace MonsterTrainAccessibility.Screens.Readers
                     sb.Append($", size {cardSize}");
                 }
 
-                sb.Append($", {cost} ember");
+                bool isXCost = IsXCostCard(cardState, type)
+                    || (cardData != null && IsXCostCard(cardData, cardData.GetType()));
+                if (isXCost)
+                {
+                    sb.Append(", X ember");
+                }
+                else
+                {
+                    sb.Append($", {cost} ember");
+                }
 
                 if (!string.IsNullOrEmpty(description))
                 {
@@ -810,6 +824,26 @@ namespace MonsterTrainAccessibility.Screens.Readers
         }
 
         /// <summary>
+        /// Detect X-cost cards (CostType.ConsumeRemainingEnergy). Works for both
+        /// CardState and CardData — both expose IsConsumeRemainingEnergyCostType().
+        /// </summary>
+        public static bool IsXCostCard(object obj, Type objType)
+        {
+            if (obj == null || objType == null) return false;
+            try
+            {
+                var method = objType.GetMethod("IsConsumeRemainingEnergyCostType", Type.EmptyTypes);
+                if (method != null)
+                {
+                    var result = method.Invoke(obj, null);
+                    if (result is bool b) return b;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>
         /// Check if a CardState has any upgrades applied.
         /// Reads CardState.cardModifiers (private) → GetCardUpgrades() → Count > 0.
         /// </summary>
@@ -848,10 +882,30 @@ namespace MonsterTrainAccessibility.Screens.Readers
                 if (charData == null) return null;
 
                 var charDataType = charData.GetType();
-                var getAbilityMethod = charDataType.GetMethod("GetUnitAbilityCardData", Type.EmptyTypes);
-                if (getAbilityMethod == null) return null;
 
-                var abilityCardData = getAbilityMethod.Invoke(charData, null);
+                // Resolve via CharacterState.GetInitialUnitAbility(charData, cardState, out _)
+                // so upgrade-granted abilities (e.g. champion upgrade preview "Savior") resolve.
+                // Falls back to CharacterData.GetUnitAbilityCardData() if the static helper isn't found.
+                object abilityCardData = null;
+                var charStateType = ReflectionHelper.GetTypeFromAssemblies("CharacterState");
+                if (charStateType != null)
+                {
+                    var getInitial = charStateType.GetMethod(
+                        "GetInitialUnitAbility",
+                        BindingFlags.Public | BindingFlags.Static);
+                    if (getInitial != null)
+                    {
+                        var args = new object[] { charData, cardState, false };
+                        try { abilityCardData = getInitial.Invoke(null, args); }
+                        catch { abilityCardData = null; }
+                    }
+                }
+                if (abilityCardData == null)
+                {
+                    var getAbilityMethod = charDataType.GetMethod("GetUnitAbilityCardData", Type.EmptyTypes);
+                    if (getAbilityMethod == null) return null;
+                    abilityCardData = getAbilityMethod.Invoke(charData, null);
+                }
                 if (abilityCardData == null) return null;
 
                 var abilityDataType = abilityCardData.GetType();
