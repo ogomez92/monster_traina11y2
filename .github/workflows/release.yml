@@ -23,8 +23,15 @@ jobs:
       - name: Create zip
         run: cd release && zip -r ../MonsterTrain2Accessibility-${{ github.ref_name }}.zip .
 
+      - name: Carry installer forward from previous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo ${{ github.repository }} --pattern 'MonsterTrain2AccessibilityInstaller.exe' --dir .
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: MonsterTrain2Accessibility-${{ github.ref_name }}.zip
+          files: |
+            MonsterTrain2Accessibility-${{ github.ref_name }}.zip
+            MonsterTrain2AccessibilityInstaller.exe
           generate_release_notes: true
